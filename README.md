@@ -171,7 +171,43 @@ Visit `http://localhost:5173` in your browser.
 
 ---
 
-## 🔧 Smart Contract Functions
+## � Deployment
+
+### Deploy Frontend to Vercel
+
+1. Push your code to GitHub
+2. Go to [vercel.com](https://vercel.com) and import your repository
+3. Set the root directory to `frontend`
+4. Add environment variables:
+   - `VITE_BACKEND_URL` = Your Render backend URL (e.g., `https://zkcircles-api.onrender.com`)
+   - `VITE_PROGRAM_ID` = `zk_circles_v1.aleo`
+   - `VITE_NETWORK` = `testnet`
+   - `VITE_CIRCLE_POT_ADDRESS` = Your circle pot address
+5. Deploy!
+
+### Deploy Backend to Render
+
+1. Go to [render.com](https://render.com) and create a new Web Service
+2. Connect your GitHub repository
+3. Set the root directory to `backend`
+4. Configure:
+   - **Build Command**: `npm install`
+   - **Start Command**: `node index.js`
+5. Add environment variables:
+   - `SUPABASE_URL` = Your Supabase project URL
+   - `SUPABASE_ANON_KEY` = Your Supabase anon key
+   - `ENCRYPTION_KEY` = Generate with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
+   - `PORT` = `3001`
+6. Deploy!
+
+### Post-Deployment
+
+1. Update your Vercel frontend's `VITE_BACKEND_URL` to point to your Render backend URL
+2. Redeploy the frontend if needed
+
+---
+
+## �🔧 Smart Contract Functions
 
 ### Transitions
 
