@@ -1,0 +1,236 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23D97706' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  }
+  
+  ::selection {
+    background-color: rgba(245, 158, 11, 0.3);
+    color: #1A1613;
+  }
+}
+
+@layer components {
+  /* Organic button styles */
+  .btn-primary {
+    @apply px-6 py-3 bg-gradient-to-r from-amber-500 to-amber-600 text-white font-semibold rounded-2xl;
+    @apply shadow-warm hover:shadow-warm-lg transition-all duration-300;
+    @apply hover:from-amber-600 hover:to-amber-700;
+    @apply focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 focus:ring-offset-cream-50;
+    @apply active:scale-[0.98];
+  }
+  
+  .btn-secondary {
+    @apply px-6 py-3 bg-cream-100 text-midnight-800 font-semibold rounded-2xl;
+    @apply border-2 border-cream-300 hover:border-amber-300 hover:bg-cream-200;
+    @apply transition-all duration-300;
+    @apply focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2;
+    @apply active:scale-[0.98];
+  }
+  
+  .btn-terra {
+    @apply px-6 py-3 bg-gradient-to-r from-terra-500 to-terra-600 text-white font-semibold rounded-2xl;
+    @apply shadow-warm hover:shadow-warm-lg transition-all duration-300;
+    @apply hover:from-terra-600 hover:to-terra-700;
+    @apply focus:outline-none focus:ring-2 focus:ring-terra-400 focus:ring-offset-2;
+    @apply active:scale-[0.98];
+  }
+  
+  .btn-forest {
+    @apply px-6 py-3 bg-gradient-to-r from-forest-500 to-forest-600 text-white font-semibold rounded-2xl;
+    @apply shadow-warm hover:shadow-warm-lg transition-all duration-300;
+    @apply hover:from-forest-600 hover:to-forest-700;
+    @apply focus:outline-none focus:ring-2 focus:ring-forest-400 focus:ring-offset-2;
+    @apply active:scale-[0.98];
+  }
+  
+  /* Card styles */
+  .card {
+    @apply bg-white/80 backdrop-blur-sm rounded-3xl p-6;
+    @apply border border-cream-200 shadow-warm;
+    @apply transition-all duration-300;
+  }
+  
+  .card-hover {
+    @apply card hover:shadow-warm-lg hover:border-amber-200 hover:-translate-y-1;
+  }
+  
+  .card-interactive {
+    @apply card-hover cursor-pointer;
+  }
+  
+  /* Glass effect cards */
+  .glass {
+    @apply bg-white/60 backdrop-blur-md rounded-3xl;
+    @apply border border-white/40 shadow-warm;
+  }
+  
+  /* Input styles */
+  .input {
+    @apply w-full px-4 py-3 rounded-xl;
+    @apply bg-cream-50 border-2 border-cream-200;
+    @apply text-midnight-900 placeholder:text-midnight-400;
+    @apply focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100;
+    @apply transition-all duration-200;
+  }
+  
+  .input-label {
+    @apply block text-sm font-medium text-midnight-700 mb-2;
+  }
+  
+  /* Status badges */
+  .badge {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-sm font-medium;
+  }
+  
+  .badge-amber {
+    @apply badge bg-amber-100 text-amber-800;
+  }
+  
+  .badge-forest {
+    @apply badge bg-forest-100 text-forest-800;
+  }
+  
+  .badge-terra {
+    @apply badge bg-terra-100 text-terra-800;
+  }
+  
+  .badge-midnight {
+    @apply badge bg-midnight-100 text-midnight-800;
+  }
+  
+  /* Decorative elements */
+  .circle-decoration {
+    @apply absolute rounded-full opacity-20 pointer-events-none;
+    background: radial-gradient(circle, rgba(245, 158, 11, 0.4) 0%, transparent 70%);
+  }
+  
+  /* Animated underline for links */
+  .link-underline {
+    @apply relative;
+  }
+  
+  .link-underline::after {
+    content: '';
+    @apply absolute bottom-0 left-0 w-0 h-0.5 bg-amber-500;
+    @apply transition-all duration-300;
+  }
+  
+  .link-underline:hover::after {
+    @apply w-full;
+  }
+  
+  /* Section headers */
+  .section-title {
+    @apply font-display text-3xl md:text-4xl font-semibold text-midnight-900;
+  }
+  
+  .section-subtitle {
+    @apply text-lg text-midnight-600 mt-2;
+  }
+  
+  /* Shimmer effect for loading */
+  .shimmer {
+    @apply relative overflow-hidden;
+  }
+  
+  .shimmer::after {
+    content: '';
+    @apply absolute inset-0;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.4),
+      transparent
+    );
+    animation: shimmer 2s infinite;
+  }
+  
+  /* Progress circles */
+  .progress-ring {
+    transform: rotate(-90deg);
+    transform-origin: 50% 50%;
+  }
+  
+  /* Custom scrollbar */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 8px;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-track {
+    @apply bg-cream-100 rounded-full;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-cream-400 rounded-full hover:bg-cream-500;
+  }
+}
+
+@layer utilities {
+  /* Text gradient */
+  .text-gradient-amber {
+    @apply bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 bg-clip-text text-transparent;
+  }
+  
+  .text-gradient-warm {
+    @apply bg-gradient-to-r from-terra-500 via-amber-500 to-forest-500 bg-clip-text text-transparent;
+  }
+  
+  /* Fade in animation */
+  .fade-in {
+    animation: fadeIn 0.5s ease-out forwards;
+  }
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  /* Stagger children animation */
+  .stagger-children > * {
+    @apply opacity-0;
+    animation: fadeIn 0.5s ease-out forwards;
+  }
+  
+  .stagger-children > *:nth-child(1) { animation-delay: 0.1s; }
+  .stagger-children > *:nth-child(2) { animation-delay: 0.2s; }
+  .stagger-children > *:nth-child(3) { animation-delay: 0.3s; }
+  .stagger-children > *:nth-child(4) { animation-delay: 0.4s; }
+  .stagger-children > *:nth-child(5) { animation-delay: 0.5s; }
+  .stagger-children > *:nth-child(6) { animation-delay: 0.6s; }
+}
+
+/* Wallet adapter style overrides */
+.wallet-adapter-button {
+  @apply !bg-amber-500 !rounded-xl !font-medium;
+}
+
+.wallet-adapter-button:hover {
+  @apply !bg-amber-600;
+}
+
+.wallet-adapter-modal-wrapper {
+  @apply !bg-midnight-950/80 !backdrop-blur-sm;
+}
+
+.wallet-adapter-modal-container {
+  @apply !bg-cream-50 !rounded-3xl !border !border-cream-200;
+}
+
+.wallet-adapter-modal-title {
+  @apply !text-midnight-900 !font-display;
+}

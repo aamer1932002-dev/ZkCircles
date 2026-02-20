@@ -1,0 +1,9 @@
+{
+    "program": "zk_circles_v1.aleo",
+    "version": "0.1.0",
+    "description": "ZkCircles - Trustless Zero-Knowledge Rotating Savings and Credit Associations on Aleo",
+    "license": "MIT",
+    "dependencies": {
+        "credits.aleo": "credits"
+    }
+}
