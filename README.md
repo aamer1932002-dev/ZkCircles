@@ -97,8 +97,8 @@ LeoCircles/
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/your-username/LeoCircles.git
-cd LeoCircles
+git clone https://github.com/aamer1932002-dev/ZkCircles.git
+cd ZkCircles
 ```
 
 ### 2. Deploy Smart Contract
