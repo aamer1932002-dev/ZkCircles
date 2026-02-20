@@ -6,6 +6,14 @@
 require('dotenv').config()
 const express = require('express')
 const cors = require('cors')
+
+// Validate encryption key early
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY
+if (ENCRYPTION_KEY && ENCRYPTION_KEY.length !== 64) {
+  console.error('❌ ENCRYPTION_KEY must be 64 hex characters (32 bytes)')
+  console.error(`   Current length: ${ENCRYPTION_KEY.length}`)
+}
+
 const { encrypt, decrypt } = require('./encryption')
 
 const app = express()
@@ -67,7 +75,13 @@ app.use(express.json())
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', service: 'zk-circles-backend', mode: USE_MOCK ? 'mock' : 'production' })
+  res.json({ 
+    status: 'ok', 
+    service: 'zk-circles-backend', 
+    mode: USE_MOCK ? 'mock' : 'production',
+    supabase: !!supabase,
+    encryptionKey: !!process.env.ENCRYPTION_KEY
+  })
 })
 
 // ==================== CIRCLES ENDPOINTS ====================
@@ -170,7 +184,7 @@ app.get('/api/circles', async (req, res) => {
     })
   } catch (error) {
     console.error('Error fetching circles:', error)
-    res.status(500).json({ error: 'Failed to fetch circles' })
+    res.status(500).json({ error: 'Failed to fetch circles', details: error.message })
   }
 })
 
@@ -297,7 +311,7 @@ app.get('/api/circles/:circleId', async (req, res) => {
     })
   } catch (error) {
     console.error('Error fetching circle detail:', error)
-    res.status(500).json({ error: 'Failed to fetch circle' })
+    res.status(500).json({ error: 'Failed to fetch circle', details: error.message })
   }
 })
 
@@ -396,7 +410,7 @@ app.get('/api/circles/member/:address', async (req, res) => {
     res.json(decryptedCircles)
   } catch (error) {
     console.error('Error fetching member circles:', error)
-    res.status(500).json({ error: 'Failed to fetch circles' })
+    res.status(500).json({ error: 'Failed to fetch circles', details: error.message })
   }
 })
 
