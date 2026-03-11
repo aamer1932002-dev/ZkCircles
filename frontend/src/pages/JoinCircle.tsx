@@ -191,7 +191,7 @@ export default function JoinCircle() {
                           <div className="flex items-center gap-2 text-sm text-midnight-600">
                             <Clock className="w-4 h-4" />
                             <span>
-                              {Math.round(circle.cycleDurationBlocks / 24000)} day cycles
+                              {circle.totalCycles ?? circle.maxMembers} cycles total
                             </span>
                           </div>
                         </div>

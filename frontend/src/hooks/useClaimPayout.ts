@@ -74,13 +74,13 @@ export function useClaimPayout() {
 
       setTransactionStatus('Awaiting wallet approval...')
 
-      // Execute claim_payout(membership: CircleMembership, cycle_number: u8)
+      // claim_payout(membership: CircleMembership, public cycle: u8)
       const result = await executeTransaction({
         program: PROGRAM_ID,
         function: 'claim_payout',
         inputs: [
           membershipPlaintext,   // membership: CircleMembership
-          `${cycleNumber}u8`,    // cycle_number: u8 (public)
+          `${cycleNumber}u8`,    // cycle: u8 (public)
         ],
         fee: BASE_FEE,
         privateFee: false, // CRITICAL: Shield Wallet requires privateFee: false

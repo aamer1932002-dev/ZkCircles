@@ -309,9 +309,9 @@ export default function CircleDetail() {
               <div className="card text-center">
                 <Clock className="w-6 h-6 text-midnight-500 mx-auto mb-2" />
                 <div className="font-display text-2xl font-bold text-midnight-900">
-                  {Math.round(circle.cycleDurationBlocks / 24000)}
+                  {circle.totalCycles ?? circle.maxMembers}
                 </div>
-                <div className="text-xs text-midnight-500">Days per cycle</div>
+                <div className="text-xs text-midnight-500">Total Cycles</div>
               </div>
             </motion.div>
 
@@ -674,7 +674,7 @@ export default function CircleDetail() {
                 <div className="flex justify-between py-2">
                   <span className="text-midnight-600">Duration</span>
                   <span className="font-medium text-midnight-900">
-                    ~{Math.round(circle.cycleDurationBlocks / 24000 * circle.totalCycles)} days total
+                    ~{circle.totalCycles ?? circle.maxMembers} cycles total
                   </span>
                 </div>
               </div>
