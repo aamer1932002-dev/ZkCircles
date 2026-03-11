@@ -48,10 +48,8 @@ export function useClaimPayout() {
       const response = await getCircleDetail(circleId)
       const circle = response.circle
 
-      if (circle.status !== 1) {
-        throw new Error('Circle is not active')
-      }
-
+      // Don't block on local status — the Aleo contract enforces validity on-chain.
+      // Local status may be stale (e.g. 0/Forming) even when the circle is active.
       const cycleNumber = circle.currentCycle || 1
       const payoutAmount = circle.contributionAmount * circle.maxMembers
 

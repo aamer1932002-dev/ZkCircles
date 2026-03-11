@@ -90,31 +90,44 @@ export async function fetchCircles(options: {
   if (options.status) params.append('status', options.status)
   if (options.limit) params.append('limit', options.limit.toString())
 
+  // Read localStorage first — locally created circles are always included
+  const localData = getLocalData()
+
   try {
     const response = await fetch(`${BACKEND_URL}/api/circles?${params}`)
     if (!response.ok) {
       throw new Error('Failed to fetch circles')
     }
-    return await response.json()
+    const backendResult: FetchCirclesResponse = await response.json()
+
+    // Merge: include locally created circles not yet indexed by the backend
+    const backendIds = new Set(backendResult.circles.map((c: CircleData) => c.id))
+    const localOnly = localData.circles.filter(c => !backendIds.has(c.id))
+    const allCircles = [...backendResult.circles, ...localOnly]
+
+    return {
+      circles: allCircles,
+      stats: {
+        ...backendResult.stats,
+        totalCircles: allCircles.length,
+      },
+    }
   } catch (error) {
     console.error('API Error:', error)
-    // Return local data + mock data for development
-    const localData = getLocalData()
+    // Backend unavailable — use localStorage + mock data
     const mockData = getMockCirclesData()
-    const allCircles = [...localData.circles, ...mockData.circles]
-    
-    // Calculate stats from actual circles data
+    const mockIds = new Set(mockData.circles.map((c: CircleData) => c.id))
+    const localOnly = localData.circles.filter(c => !mockIds.has(c.id))
+    const allCircles = [...localOnly, ...mockData.circles]
+
     const stats: CircleStats = {
       totalCircles: allCircles.length,
       activeMembers: allCircles.reduce((sum, c) => sum + (c.membersJoined || 0), 0),
       totalVolume: allCircles.reduce((sum, c) => sum + ((c.contributionAmount || 0) * (c.membersJoined || 0) * (c.currentCycle || 0)), 0),
       completedCircles: allCircles.filter(c => c.status === 2).length,
     }
-    
-    return {
-      circles: allCircles,
-      stats
-    }
+
+    return { circles: allCircles, stats }
   }
 }
 
@@ -122,45 +135,44 @@ export async function fetchCircles(options: {
  * Fetch user's circles
  */
 export async function fetchMyCircles(address: string): Promise<CircleData[]> {
-  // Always try backend first for consistent data across browsers
+  // localStorage is the authoritative source for circles the user created locally.
+  // Always read it first so those circles are never lost.
+  const localData = getLocalData()
+  const isMyCircle = (c: CircleData) =>
+    c.creator === address ||
+    (localData.memberships[c.id] ?? []).includes(address)
+  const localCircles = localData.circles.filter(isMyCircle)
+
   try {
     const response = await fetch(`${BACKEND_URL}/api/circles/member/${address}`)
     if (!response.ok) {
       throw new Error('Failed to fetch my circles')
     }
-    const circles = await response.json()
-    
-    // Update local storage with backend data
-    if (circles.length > 0) {
-      const localData = getLocalData()
-      for (const circle of circles) {
-        const existingIndex = localData.circles.findIndex(c => c.id === circle.id)
-        if (existingIndex >= 0) {
-          localData.circles[existingIndex] = circle
-        } else {
-          localData.circles.push(circle)
-        }
-        // Mark user as member
-        if (!localData.memberships[circle.id]) {
-          localData.memberships[circle.id] = []
-        }
-        if (!localData.memberships[circle.id].includes(address)) {
-          localData.memberships[circle.id].push(address)
-        }
+    const backendCircles: CircleData[] = await response.json()
+
+    // Sync backend data into localStorage (fresher status, member counts, etc.)
+    for (const circle of backendCircles) {
+      const idx = localData.circles.findIndex(c => c.id === circle.id)
+      if (idx >= 0) {
+        localData.circles[idx] = circle
+      } else {
+        localData.circles.push(circle)
       }
-      saveLocalData(localData)
+      if (!localData.memberships[circle.id]) localData.memberships[circle.id] = []
+      if (!localData.memberships[circle.id].includes(address)) {
+        localData.memberships[circle.id].push(address)
+      }
     }
-    
-    return circles
+    saveLocalData(localData)
+
+    // Return backend circles PLUS any local-only ones (not yet indexed by backend)
+    const backendIds = new Set(backendCircles.map(c => c.id))
+    const localOnly = localCircles.filter(c => !backendIds.has(c.id))
+    return [...backendCircles, ...localOnly]
   } catch (error) {
     console.error('API Error:', error)
-    // Fallback to local storage only if backend fails
-    const localData = getLocalData()
-    return localData.circles.filter(c => {
-      const isCreator = c.creator === address
-      const isMember = localData.memberships[c.id] && localData.memberships[c.id].includes(address)
-      return isCreator || isMember
-    })
+    // Backend unavailable — return from localStorage
+    return localCircles
   }
 }
 
@@ -243,7 +255,7 @@ export async function saveCircleToBackend(data: {
     cycleDurationBlocks: 0,
     totalCycles: data.totalCycles,
     status: data.status,
-    currentCycle: 0,
+    currentCycle: 1, // Leo contract cycles are 1-based
     membersJoined: 1,
     createdAt: new Date().toISOString(),
   }

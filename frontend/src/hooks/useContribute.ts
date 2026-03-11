@@ -5,15 +5,15 @@ import { recordContributionBackend, getCircleDetail } from '../services/api'
 const PROGRAM_ID = import.meta.env.VITE_PROGRAM_ID || 'zk_circles_v5.aleo'
 const BASE_FEE = 1_000_000
 
-// The pot address collects all contributions for a circle.
 const DEFAULT_POT_ADDRESS =
   import.meta.env.VITE_CIRCLE_POT_ADDRESS ||
   'aleo1yvukv56vxntqpc280d40dhuvz4prpwzvdvjcm9ggm8a8e3tffsgqc9ws3t'
 
 /**
  * Reconstruct a record plaintext string from a WalletAdapterRecord.
- * The Provable SDK returns parsed fields in `r.data` (not a raw plaintext
- * string), so we rebuild the string the Leo VM expects as input.
+ * The Provable SDK returns parsed fields in `r.data` (e.g.
+ * { circle_id: "123field.private", payout_order: "1u8.private" })
+ * rather than a raw plaintext string.
  */
 function reconstructPlaintext(r: any): string {
   const raw: string | undefined = r.recordPlaintext || r.plaintext || r.record
@@ -58,14 +58,12 @@ export function useContribute() {
         const programRecords = await requestRecords(PROGRAM_ID) || []
         console.log('[Contribute] Program records count:', (programRecords as any[]).length)
 
-        // Strip the "field" type suffix for bare-number comparisons
         const bareCircleId = circleId.replace(/field$/i, '')
 
         for (const r of programRecords as any[]) {
           if (r.spent) continue
 
-          // Strategy 1: Provable SDK parses fields into r.data object
-          // e.g. r.data = { circle_id: "123field.private", payout_order: "1u8.private" }
+          // Strategy 1: Provable SDK parses fields into r.data
           if (r.data?.circle_id) {
             const storedId = String(r.data.circle_id)
               .replace('.private', '')
@@ -80,7 +78,7 @@ export function useContribute() {
             }
           }
 
-          // Strategy 2: Some adapters expose a pre-decoded plaintext string
+          // Strategy 2: Pre-decoded plaintext string
           const pt: string | undefined = r.recordPlaintext || r.plaintext || r.record
           if (pt && typeof pt === 'string') {
             if (pt.includes(circleId) || pt.includes(bareCircleId)) {
@@ -88,7 +86,7 @@ export function useContribute() {
             }
           }
 
-          // Strategy 3: Encrypted record — decrypt then match
+          // Strategy 3: Decrypt ciphertext
           const ct: string | undefined = r.ciphertext || r.recordCiphertext
           if (ct && decrypt) {
             try {
@@ -111,21 +109,18 @@ export function useContribute() {
         )
       }
 
-      // Get current cycle from backend
       const response = await getCircleDetail(circleId)
       const cycle = response.circle.currentCycle || 1
 
       setTransactionStatus('Awaiting wallet approval...')
 
-      // contribute(membership, pot_address, cycle)
-      // credits.aleo/transfer_public_as_signer debits signer's public balance atomically
       const result = await executeTransaction({
         program: PROGRAM_ID,
         function: 'contribute',
         inputs: [
-          membershipPlaintext,                    // membership: CircleMembership
-          potAddress || DEFAULT_POT_ADDRESS,      // pot_address: address (public)
-          `${cycle}u8`,                           // cycle: u8 (public)
+          membershipPlaintext,
+          potAddress || DEFAULT_POT_ADDRESS,
+          `${cycle}u8`,
         ],
         fee: BASE_FEE,
         privateFee: false,

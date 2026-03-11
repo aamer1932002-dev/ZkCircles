@@ -28,7 +28,7 @@ export default function Explorer() {
 
   useEffect(() => {
     fetchCircles({ status: statusFilter === 'all' ? undefined : statusFilter })
-  }, [statusFilter])
+  }, [statusFilter, fetchCircles])
 
   const filteredCircles = circles.filter(circle => {
     if (!searchQuery) return true
