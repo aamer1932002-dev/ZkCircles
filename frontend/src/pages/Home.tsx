@@ -2,16 +2,15 @@ import { Link } from 'react-router-dom'
 import { useWallet } from '@provablehq/aleo-wallet-adaptor-react'
 import { motion } from 'framer-motion'
 import { 
-  Users, 
   Shield, 
   Zap, 
   Globe, 
   ArrowRight, 
   Lock,
   Eye,
-  Coins,
   CircleDot
 } from 'lucide-react'
+import ZkCirclesIllustration from '../components/ZkCirclesIllustration'
 
 export default function Home() {
   const { connected } = useWallet()
@@ -175,73 +174,9 @@ export default function Home() {
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.6, delay: 0.2 }}
-              className="relative hidden lg:block"
+              className="relative hidden lg:flex items-center justify-center"
             >
-              <div className="relative w-[400px] h-[400px] mx-auto">
-                {/* Outer decorative ring */}
-                <div className="absolute inset-4 rounded-full border-2 border-dashed border-amber-200 opacity-60" />
-                <div className="absolute inset-12 rounded-full border-2 border-dashed border-amber-300 opacity-40" />
-                
-                {/* Central pot */}
-                <motion.div
-                  className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-28 h-28 bg-gradient-to-br from-amber-400 to-amber-600 rounded-full shadow-xl flex items-center justify-center z-10"
-                  animate={{ scale: [1, 1.05, 1] }}
-                  transition={{ duration: 3, repeat: Infinity }}
-                >
-                  <Coins className="w-10 h-10 text-white" />
-                </motion.div>
-
-                {/* Member circles - positioned on the ring */}
-                {[0, 60, 120, 180, 240, 300].map((angle, index) => {
-                  const radius = 150 // distance from center
-                  const x = Math.cos((angle - 90) * Math.PI / 180) * radius
-                  const y = Math.sin((angle - 90) * Math.PI / 180) * radius
-                  return (
-                    <motion.div
-                      key={angle}
-                      className="absolute w-14 h-14 bg-gradient-to-br from-terra-400 to-terra-600 rounded-full shadow-lg flex items-center justify-center"
-                      style={{
-                        top: `calc(50% + ${y}px)`,
-                        left: `calc(50% + ${x}px)`,
-                        transform: 'translate(-50%, -50%)',
-                      }}
-                      animate={{ 
-                        scale: [1, 1.15, 1],
-                        boxShadow: [
-                          '0 4px 6px rgba(0,0,0,0.1)',
-                          '0 8px 15px rgba(0,0,0,0.2)',
-                          '0 4px 6px rgba(0,0,0,0.1)'
-                        ]
-                      }}
-                      transition={{ duration: 2, repeat: Infinity, delay: index * 0.4 }}
-                    >
-                      <Users className="w-5 h-5 text-white" />
-                    </motion.div>
-                  )
-                })}
-
-                {/* Connection lines */}
-                <svg className="absolute inset-0 w-full h-full" style={{ zIndex: 0 }}>
-                  <defs>
-                    <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                      <stop offset="0%" stopColor="#F59E0B" stopOpacity="0.3" />
-                      <stop offset="50%" stopColor="#F59E0B" stopOpacity="0.6" />
-                      <stop offset="100%" stopColor="#F59E0B" stopOpacity="0.3" />
-                    </linearGradient>
-                  </defs>
-                  <circle 
-                    cx="200" 
-                    cy="200" 
-                    r="150" 
-                    fill="none" 
-                    stroke="url(#lineGradient)" 
-                    strokeWidth="2" 
-                    strokeDasharray="8 8"
-                    className="animate-spin-slow"
-                    style={{ transformOrigin: 'center' }}
-                  />
-                </svg>
-              </div>
+              <ZkCirclesIllustration />
             </motion.div>
           </div>
         </div>
