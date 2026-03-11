@@ -143,9 +143,16 @@ export function useClaimPayout() {
         )
       }
 
-      // ── Get current cycle ────────────────────────────────────────────────
+      // ── Get current cycle + circle info (needed for payout amount) ────────
       const response = await getCircleDetail(circleId)
       const cycleNumber = Number(response.circle.currentCycle) || 1
+      // payout = every member's contribution for one cycle
+      const contributionAmount = Number(response.circle.contributionAmount) || 0
+      const maxMembers = Number(response.circle.maxMembers) || 0
+      const payoutAmount = contributionAmount * maxMembers
+      if (payoutAmount <= 0) {
+        throw new Error('Could not determine payout amount from circle details.')
+      }
 
       setTransactionStatus('Awaiting wallet approval…')
 
@@ -153,8 +160,9 @@ export function useClaimPayout() {
         program: PROGRAM_ID,
         function: 'claim_payout',
         inputs: [
-          membershipInput,       // membership: CircleMembership
-          `${cycleNumber}u8`,    // cycle: u8 (public)
+          membershipInput,          // membership: CircleMembership
+          `${cycleNumber}u8`,       // cycle: u8 (public)
+          `${payoutAmount}u64`,     // payout_amount: u64 (public) — verified on-chain
         ],
         fee: BASE_FEE,
         privateFee: false,

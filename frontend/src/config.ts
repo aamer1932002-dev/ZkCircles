@@ -8,9 +8,9 @@
  */
 
 // ── Deployed contract ────────────────────────────────────────────────────────
-// TX: at1xdqjlu543q3j594v9ueev7lzvs6d4hd2zvd6uyajfewjlhd3gvgsmm0zwa
+// Deploy zk_circles_v6.aleo and replace the TX comment below.
 export const PROGRAM_ID =
-  (import.meta.env.VITE_PROGRAM_ID as string) || 'zk_circles_v5.aleo'
+  (import.meta.env.VITE_PROGRAM_ID as string) || 'zk_circles_v6.aleo'
 
 // ── Circle pot address (collects contributions via transfer_public_as_signer) ─
 export const CIRCLE_POT_ADDRESS =

@@ -7,10 +7,9 @@ import {
   clearCachedMembership,
   synthesizeMembershipRecord,
 } from '../utils/membershipCache'
-import { PROGRAM_ID, CIRCLE_POT_ADDRESS, FEE_CONTRIBUTE } from '../config'
+import { PROGRAM_ID, FEE_CONTRIBUTE } from '../config'
 
 const BASE_FEE = FEE_CONTRIBUTE
-const DEFAULT_POT_ADDRESS = CIRCLE_POT_ADDRESS
 
 /**
  * Rebuild a CircleMembership Leo record plaintext from a WalletAdapterRecord.
@@ -160,8 +159,7 @@ export function useContribute() {
 
   const contribute = useCallback(async (
     circleId: string,
-    amount: number,
-    potAddress?: string
+    amount: number
   ): Promise<ContributeResult> => {
     if (!connected || !address) {
       return { success: false, error: 'Wallet not connected' }
@@ -212,16 +210,15 @@ export function useContribute() {
 
       setTransactionStatus('Awaiting wallet approval…')
 
-      // ── Step 3: Submit contribute(membership, pot_address, cycle) ────────
-      // credits.aleo/transfer_public_as_signer inside the contract debits the
-      // signer's PUBLIC balance – no separate credits record needed.
+      // ── Step 3: Submit contribute(membership, cycle) ─────────────────────
+      // The v6 contract sends to self.address (the program itself) — no
+      // pot_address parameter needed. credits move: signer → program.
       const result = await executeTransaction({
         program: PROGRAM_ID,
         function: 'contribute',
         inputs: [
-          membershipPlaintext,                  // membership: CircleMembership
-          potAddress || DEFAULT_POT_ADDRESS,    // pot_address: address (public)
-          `${cycle}u8`,                         // cycle: u8 (public)
+          membershipPlaintext,  // membership: CircleMembership
+          `${cycle}u8`,         // cycle: u8 (public)
         ],
         fee: BASE_FEE,
         privateFee: false,

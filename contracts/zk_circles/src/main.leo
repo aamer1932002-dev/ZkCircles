@@ -1,11 +1,11 @@
 // ZkCircles — privacy-preserving ROSCA (Rotating Savings & Credit Association) on Aleo.
 // Member addresses are never stored in plain text; all mapping keys are BHP256 hashes.
-// Contributions move real credits via transfer_public_as_signer so the signer's account
-// is debited atomically within the same transaction that records the on-chain receipt.
+// Contributions move real credits via transfer_public_as_signer to the PROGRAM'S OWN
+// address so claim_payout can call transfer_public back to the winner atomically.
 
 import credits.aleo;
 
-program zk_circles_v5.aleo {
+program zk_circles_v6.aleo {
 
     // circle status values
     // 0 = forming   (accepting members)
@@ -147,15 +147,13 @@ program zk_circles_v5.aleo {
         });
     }
 
-    // Transfers credits from the signer's public account to the circle pot address
-    // and records the contribution atomically. The Future from transfer_public_as_signer
-    // is awaited first in finalize so the debit is settled before state updates.
+    // Transfers credits from the signer's public account to THIS PROGRAM's address
+    // (self.address) so the program can later pay the winner via transfer_public.
     async transition contribute(
         membership: CircleMembership,
-        public pot_address: address,
         public cycle: u8
     ) -> (CircleMembership, ContributionReceipt, Future) {
-        let tf: Future = credits.aleo/transfer_public_as_signer(pot_address, membership.contribution_amount);
+        let tf: Future = credits.aleo/transfer_public_as_signer(self.address, membership.contribution_amount);
 
         let receipt: ContributionReceipt = ContributionReceipt {
             owner: self.signer,
@@ -186,30 +184,47 @@ program zk_circles_v5.aleo {
         contributions.set(contrib_key, true);
     }
 
+    // Pays out the winner for this cycle by transferring
+    // contribution_amount * max_members credits from the program's own account
+    // to the claimer's public balance.
+    // payout_amount is passed as a public input and verified in finalize against
+    // the on-chain circle info so it cannot be spoofed.
     async transition claim_payout(
         membership: CircleMembership,
-        public cycle: u8
+        public cycle: u8,
+        public payout_amount: u64
     ) -> (PayoutReceipt, Future) {
+        // Program sends payout from its own public balance to the winner
+        let tf: Future = credits.aleo/transfer_public(self.signer, payout_amount);
+
         let receipt: PayoutReceipt = PayoutReceipt {
             owner: self.signer,
             circle_id: membership.circle_id,
             cycle: cycle
         };
-        return (receipt, finalize_claim_payout(membership.circle_id, cycle, self.signer));
+        return (receipt, finalize_claim_payout(tf, membership.circle_id, cycle, self.signer, payout_amount));
     }
 
     async function finalize_claim_payout(
+        tf: Future,
         circle_id: field,
         cycle: u8,
-        claimer: address
+        claimer: address,
+        payout_amount: u64
     ) {
         let info: CircleInfo = circles.get(circle_id);
         assert_eq(info.status, 1u8);
         assert_eq(info.current_cycle, cycle);
 
+        // Verify payout matches exactly: every member contributed once per cycle
+        let expected: u64 = info.contribution_amount * (info.max_members as u64);
+        assert_eq(payout_amount, expected);
+
         let key: field = BHP256::hash_to_field(MemberKey { circle_id: circle_id, member_addr: claimer });
         let join_order: u8 = members.get(key);
         assert_eq(join_order, cycle);
+
+        tf.await();
 
         let next_cycle: u8 = cycle + 1u8;
         let is_done: bool = next_cycle > info.total_cycles;
