@@ -224,12 +224,10 @@ export async function getCircleDetail(circleId: string): Promise<CircleDetailRes
 export async function saveCircleToBackend(data: {
   circleId: string
   name: string
-  nameHash: string
   creator: string
   contributionAmount: number
   maxMembers: number
-  cycleDurationBlocks: number
-  salt: string
+  totalCycles: number
   transactionId: string
   status: number
 }): Promise<void> {
@@ -239,12 +237,11 @@ export async function saveCircleToBackend(data: {
   const newCircle: CircleData = {
     id: data.circleId,
     name: data.name,
-    nameHash: data.nameHash,
     creator: data.creator,
     contributionAmount: data.contributionAmount,
     maxMembers: data.maxMembers,
-    cycleDurationBlocks: data.cycleDurationBlocks,
-    totalCycles: data.maxMembers,
+    cycleDurationBlocks: 0,
+    totalCycles: data.totalCycles,
     status: data.status,
     currentCycle: 0,
     membersJoined: 1,
@@ -293,7 +290,6 @@ export async function updateCircleMembershipBackend(data: {
   circleId: string
   memberAddress: string
   transactionId: string
-  salt: string
 }): Promise<void> {
   // Always save to local storage as backup
   const localData = getLocalData()

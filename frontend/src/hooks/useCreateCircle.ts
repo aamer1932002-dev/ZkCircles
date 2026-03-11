@@ -3,14 +3,14 @@ import { useWallet } from '@provablehq/aleo-wallet-adaptor-react'
 import { generateSalt, hashToField } from '../utils/aleo-utils'
 import { saveCircleToBackend } from '../services/api'
 
-const PROGRAM_ID = import.meta.env.VITE_PROGRAM_ID || 'zk_circles_v3.aleo'
+const PROGRAM_ID = import.meta.env.VITE_PROGRAM_ID || 'zk_circles_v4.aleo'
 const BASE_FEE = 1_000_000 // 1 ALEO in microcredits
 
 interface CreateCircleParams {
   name: string
   contributionAmount: number // in microcredits
   maxMembers: number
-  cycleDurationBlocks: number
+  totalCycles: number
 }
 
 interface CreateCircleResult {
@@ -38,19 +38,16 @@ export function useCreateCircle() {
     setTransactionStatus('Preparing transaction...')
 
     try {
-      // Generate random salt for circle ID
+      // Generate a unique circle_id off-chain: hash(creator:name:salt)
       const salt = generateSalt()
-      
-      // Hash the circle name for privacy
-      const nameHash = await hashToField(params.name)
-      
-      // Prepare the inputs — matches create_circle(name_hash, contribution_amount, max_members, cycle_duration_blocks, salt)
+      const circleId = await hashToField(`${address}:${params.name}:${salt}`)
+
+      // Inputs: create_circle(circle_id, contribution_amount, max_members, total_cycles)
       const inputs = [
-        nameHash,                                   // name_hash: field
+        circleId,                                   // circle_id: field
         `${params.contributionAmount}u64`,          // contribution_amount: u64
         `${params.maxMembers}u8`,                   // max_members: u8
-        `${params.cycleDurationBlocks}u32`,         // cycle_duration_blocks: u32
-        salt,                                       // salt: field
+        `${params.totalCycles}u8`,                  // total_cycles: u8
       ]
 
       setTransactionStatus('Awaiting wallet approval...')
@@ -77,13 +74,7 @@ export function useCreateCircle() {
       
       setTransactionStatus('Transaction submitted to wallet!')
 
-      // Calculate circle ID (same as contract does)
-      const circleId = await hashToField(JSON.stringify({
-        creator: address,
-        name_hash: nameHash,
-        salt: salt
-      }))
-
+      // Circle ID was computed above before the transaction
       // Wait a moment for the wallet to process
       await new Promise(resolve => setTimeout(resolve, 2000))
       setTransactionStatus('Circle created successfully!')
@@ -93,14 +84,12 @@ export function useCreateCircle() {
         await saveCircleToBackend({
           circleId,
           name: params.name,
-          nameHash,
           creator: address,
           contributionAmount: params.contributionAmount,
           maxMembers: params.maxMembers,
-          cycleDurationBlocks: params.cycleDurationBlocks,
-          salt,
+          totalCycles: params.totalCycles,
           transactionId: txId,
-          status: 0, // Active status
+          status: 0,
         })
       } catch (backendError) {
         console.warn('Backend save failed (non-critical):', backendError)

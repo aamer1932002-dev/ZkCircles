@@ -1,13 +1,6 @@
 {
-    "program": "zk_circles_v3.aleo",
+    "program": "zk_circles_v4.aleo",
     "version": "0.1.0",
-    "description": "ZkCircles - Trustless Zero-Knowledge Rotating Savings and Credit Associations on Aleo",
-    "license": "MIT",
-    "dependencies": [
-        {
-            "name": "credits.aleo",
-            "location": "network",
-            "network": "testnet"
-        }
-    ]
+    "description": "ZkCircles - Privacy-preserving ROSCA on Aleo",
+    "license": "MIT"
 }

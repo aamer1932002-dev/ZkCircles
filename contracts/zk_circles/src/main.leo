@@ -1,81 +1,64 @@
-// ZkCircles - Trustless Zero-Knowledge Rotating Savings and Credit Associations
-// Built on Aleo for privacy-preserving community finance
-// Program: zk_circles_v3.aleo
+// ZkCircles - Privacy-preserving ROSCA on Aleo
+// Fund transfers happen off-chain; this contract provides
+// ZK membership proofs, contribution receipts, and payout receipts.
+// Member identity is hidden via hashed mapping keys (BHP256).
+// Program: zk_circles_v4.aleo
 
-import credits.aleo;
-
-program zk_circles_v3.aleo {
+program zk_circles_v4.aleo {
 
     // ==================== STRUCTS ====================
 
-    struct CircleIdInput {
-        creator: address,
-        name_hash: field,
-        salt: field
-    }
-
-    struct MemberKeyInput {
-        circle_id: field,
-        member_addr: address
-    }
-
-    struct ContribKeyInput {
-        circle_id: field,
-        cycle: u8,
-        member_addr: address
-    }
-
-    struct CircleConfig {
+    // Single merged struct keeps finalize ops minimal
+    struct CircleInfo {
         contribution_amount: u64,
-        max_members: u8,
-        cycle_duration_blocks: u32,
-        creator: address,
-        status: u8
+        max_members:         u8,
+        total_cycles:        u8,
+        current_cycle:       u8,
+        members_joined:      u8,
+        status:              u8   // 0=forming 1=active 2=complete 3=cancelled
     }
 
-    struct CircleState {
-        current_cycle: u8,
-        members_joined: u8,
-        start_block: u32,
-        last_payout_cycle: u8
+    // Hashed key structs — member addresses are never stored in plain text
+    struct MemberKey {
+        circle_id:   field,
+        member_addr: address
     }
 
-    struct MemberData {
-        join_order: u8,
-        total_contributed: u64,
-        has_received_payout: bool
+    struct ContribKey {
+        circle_id:   field,
+        cycle:       u8,
+        member_addr: address
     }
 
-    // ==================== RECORDS ====================
+    // ==================== RECORDS (all private, encrypted for owner) ====================
 
     record CircleMembership {
-        owner: address,
-        circle_id: field,
-        contribution_amount: u64,
-        salt: field
+        owner:               address,
+        circle_id:           field,
+        contribution_amount: u64
     }
 
     record ContributionReceipt {
-        owner: address,
+        owner:     address,
         circle_id: field,
-        cycle_number: u8,
-        amount: u64
+        cycle:     u8,
+        amount:    u64
     }
 
     record PayoutReceipt {
-        owner: address,
+        owner:     address,
         circle_id: field,
-        cycle_number: u8,
-        amount: u64
+        cycle:     u8
     }
 
     // ==================== MAPPINGS ====================
 
-    mapping circles: field => CircleConfig;
-    mapping circle_states: field => CircleState;
-    mapping members: field => MemberData;
+    // circles:       circle_id           → CircleInfo  (public circle metadata)
+    // members:       hash(circle+addr)   → join_order  (WHO is a member stays private via hashed key)
+    // contributions: hash(circle+cycle+addr) → paid    (contribution status is private)
+    mapping circles:       field => CircleInfo;
+    mapping members:       field => u8;
     mapping contributions: field => bool;
-    mapping total_circles: u8 => u64;
 
     // ==================== CONSTRUCTOR ====================
 
@@ -86,314 +69,228 @@ program zk_circles_v3.aleo {
 
     // ==================== TRANSITIONS ====================
 
+    // Create a new savings circle.
+    // circle_id is computed off-chain (e.g. BHP256 of creator+name+salt).
     async transition create_circle(
-        public name_hash: field,
+        public circle_id:           field,
         public contribution_amount: u64,
-        public max_members: u8,
-        public cycle_duration_blocks: u32,
-        public salt: field
+        public max_members:         u8,
+        public total_cycles:        u8
     ) -> (CircleMembership, Future) {
-        assert(contribution_amount >= 1000u64);
+        assert(contribution_amount >= 1u64);
         assert(max_members >= 2u8);
-        assert(max_members <= 12u8);
-        assert(cycle_duration_blocks >= 100u32);
-
-        let circle_id: field = BHP256::hash_to_field(CircleIdInput {
-            creator: self.signer,
-            name_hash: name_hash,
-            salt: salt
-        });
+        assert(max_members <= 20u8);
+        assert(total_cycles >= 2u8);
 
         let membership: CircleMembership = CircleMembership {
-            owner: self.signer,
-            circle_id: circle_id,
-            contribution_amount: contribution_amount,
-            salt: salt
+            owner:               self.signer,
+            circle_id:           circle_id,
+            contribution_amount: contribution_amount
         };
 
-        let f: Future = finalize_create_circle(
-            circle_id,
-            contribution_amount,
-            max_members,
-            cycle_duration_blocks,
-            self.signer
-        );
-
-        return (membership, f);
+        return (membership, finalize_create_circle(circle_id, contribution_amount, max_members, total_cycles, self.signer));
     }
 
     async function finalize_create_circle(
-        circle_id: field,
+        circle_id:           field,
         contribution_amount: u64,
-        max_members: u8,
-        cycle_duration_blocks: u32,
-        creator: address
+        max_members:         u8,
+        total_cycles:        u8,
+        creator:             address
     ) {
+        assert(!circles.contains(circle_id));
 
-        circles.set(circle_id, CircleConfig {
+        circles.set(circle_id, CircleInfo {
             contribution_amount: contribution_amount,
-            max_members: max_members,
-            cycle_duration_blocks: cycle_duration_blocks,
-            creator: creator,
-            status: 0u8
+            max_members:         max_members,
+            total_cycles:        total_cycles,
+            current_cycle:       0u8,
+            members_joined:      1u8,
+            status:              0u8
         });
 
-        circle_states.set(circle_id, CircleState {
-            current_cycle: 0u8,
-            members_joined: 1u8,
-            start_block: 0u32,
-            last_payout_cycle: 0u8
-        });
-
-        let member_key: field = BHP256::hash_to_field(MemberKeyInput {
-            circle_id: circle_id,
+        let member_key: field = BHP256::hash_to_field(MemberKey {
+            circle_id:   circle_id,
             member_addr: creator
         });
-
-        members.set(member_key, MemberData {
-            join_order: 1u8,
-            total_contributed: 0u64,    
-            has_received_payout: false
-        });
-
-        let prev_total: u64 = total_circles.get_or_use(0u8, 0u64);
-        total_circles.set(0u8, prev_total + 1u64);
+        members.set(member_key, 1u8);
     }
 
+    // Join a circle that is still forming (status = 0).
     async transition join_circle(
-        public circle_id: field,
-        public contribution_amount: u64,
-        public salt: field
+        public circle_id:           field,
+        public contribution_amount: u64
     ) -> (CircleMembership, Future) {
         let membership: CircleMembership = CircleMembership {
-            owner: self.signer,
-            circle_id: circle_id,
-            contribution_amount: contribution_amount,
-            salt: salt
+            owner:               self.signer,
+            circle_id:           circle_id,
+            contribution_amount: contribution_amount
         };
-
-        let f: Future = finalize_join_circle(circle_id, contribution_amount, self.signer);
-        return (membership, f);
+        return (membership, finalize_join_circle(circle_id, contribution_amount, self.signer));
     }
 
     async function finalize_join_circle(
-        circle_id: field,
+        circle_id:           field,
         contribution_amount: u64,
-        joiner: address
+        joiner:              address
     ) {
-        let config: CircleConfig = circles.get(circle_id);
-        assert_eq(config.status, 0u8);
-        assert_eq(contribution_amount, config.contribution_amount);
+        let info: CircleInfo = circles.get(circle_id);
+        assert_eq(info.status, 0u8);
+        assert_eq(contribution_amount, info.contribution_amount);
+        assert(info.members_joined < info.max_members);
 
-        let state: CircleState = circle_states.get(circle_id);
-        assert(state.members_joined < config.max_members);
-
-        let member_key: field = BHP256::hash_to_field(MemberKeyInput {
-            circle_id: circle_id,
+        let member_key: field = BHP256::hash_to_field(MemberKey {
+            circle_id:   circle_id,
             member_addr: joiner
         });
+        assert(!members.contains(member_key));
 
-        let new_join_order: u8 = state.members_joined + 1u8;
-        let is_full: bool = new_join_order == config.max_members;
+        let new_count: u8 = info.members_joined + 1u8;
+        let is_full:   bool = new_count == info.max_members;
 
-        members.set(member_key, MemberData {
-            join_order: new_join_order,
-            total_contributed: 0u64,
-            has_received_payout: false
-        });
+        members.set(member_key, new_count);
 
-        circle_states.set(circle_id, CircleState {
-            current_cycle: is_full ? 1u8 : 0u8,
-            members_joined: new_join_order,
-            start_block: is_full ? block.height : 0u32,
-            last_payout_cycle: 0u8
-        });
-
-        circles.set(circle_id, CircleConfig {
-            contribution_amount: config.contribution_amount,
-            max_members: config.max_members,
-            cycle_duration_blocks: config.cycle_duration_blocks,
-            creator: config.creator,
-            status: is_full ? 1u8 : 0u8
+        circles.set(circle_id, CircleInfo {
+            contribution_amount: info.contribution_amount,
+            max_members:         info.max_members,
+            total_cycles:        info.total_cycles,
+            current_cycle:       is_full ? 1u8 : 0u8,
+            members_joined:      new_count,
+            status:              is_full ? 1u8 : 0u8
         });
     }
 
-    async transition contribute(
+    // Record that a member has contributed for the current cycle.
+    // Actual fund transfer happens off-chain to the circle's pot address.
+    // Returns the membership record (so it can be reused) + a private receipt.
+    async transition record_contribution(
         membership: CircleMembership,
-        payment: credits.aleo/credits,
-        public pot_address: address,
-        public cycle_number: u8
-    ) -> (CircleMembership, ContributionReceipt, credits.aleo/credits, Future) {
-        let (change, sent_record): (credits.aleo/credits, credits.aleo/credits) = credits.aleo/transfer_private(
-            payment,
-            pot_address,
-            membership.contribution_amount
-        );
-
+        public cycle: u8
+    ) -> (CircleMembership, ContributionReceipt, Future) {
         let receipt: ContributionReceipt = ContributionReceipt {
-            owner: self.signer,
+            owner:     self.signer,
             circle_id: membership.circle_id,
-            cycle_number: cycle_number,
-            amount: membership.contribution_amount
+            cycle:     cycle,
+            amount:    membership.contribution_amount
         };
-
-        let f: Future = finalize_contribute(
-            membership.circle_id,
-            self.signer,
-            membership.contribution_amount,
-            cycle_number
-        );
-
-        return (membership, receipt, change, f);
+        return (membership, receipt, finalize_record_contribution(membership.circle_id, cycle, self.signer));
     }
 
-    async function finalize_contribute(
-        circle_id: field,
-        contributor: address,
-        amount: u64,
-        cycle_number: u8
+    async function finalize_record_contribution(
+        circle_id:   field,
+        cycle:       u8,
+        contributor: address
     ) {
-        let config: CircleConfig = circles.get(circle_id);
-        assert_eq(config.status, 1u8);
-        assert_eq(amount, config.contribution_amount);
+        let info: CircleInfo = circles.get(circle_id);
+        assert_eq(info.status, 1u8);
+        assert_eq(info.current_cycle, cycle);
 
-        let state: CircleState = circle_states.get(circle_id);
-        assert_eq(cycle_number, state.current_cycle);
-
-        let member_key: field = BHP256::hash_to_field(MemberKeyInput {
-            circle_id: circle_id,
+        let member_key: field = BHP256::hash_to_field(MemberKey {
+            circle_id:   circle_id,
             member_addr: contributor
         });
-        let member: MemberData = members.get(member_key);
+        assert(members.contains(member_key));
 
-        let contrib_key: field = BHP256::hash_to_field(ContribKeyInput {
-            circle_id: circle_id,
-            cycle: cycle_number,
+        let contrib_key: field = BHP256::hash_to_field(ContribKey {
+            circle_id:   circle_id,
+            cycle:       cycle,
             member_addr: contributor
         });
-
+        assert(!contributions.get_or_use(contrib_key, false));
         contributions.set(contrib_key, true);
-
-        members.set(member_key, MemberData {
-            join_order: member.join_order,
-            total_contributed: member.total_contributed + amount,
-            has_received_payout: member.has_received_payout
-        });
     }
 
+    // Claim payout when it's your turn (your join_order must equal current_cycle).
     async transition claim_payout(
         membership: CircleMembership,
-        public cycle_number: u8
+        public cycle: u8
     ) -> (PayoutReceipt, Future) {
         let receipt: PayoutReceipt = PayoutReceipt {
-            owner: self.signer,
+            owner:     self.signer,
             circle_id: membership.circle_id,
-            cycle_number: cycle_number,
-            amount: 0u64
+            cycle:     cycle
         };
-
-        let f: Future = finalize_claim_payout(
-            membership.circle_id,
-            self.signer
-        );
-
-        return (receipt, f);
+        return (receipt, finalize_claim_payout(membership.circle_id, cycle, self.signer));
     }
 
     async function finalize_claim_payout(
         circle_id: field,
-        claimer: address
+        cycle:     u8,
+        claimer:   address
     ) {
-        let config: CircleConfig = circles.get(circle_id);
-        let state: CircleState = circle_states.get(circle_id);
-        assert_eq(config.status, 1u8);
+        let info: CircleInfo = circles.get(circle_id);
+        assert_eq(info.status, 1u8);
+        assert_eq(info.current_cycle, cycle);
 
-        let member_key: field = BHP256::hash_to_field(MemberKeyInput {
-            circle_id: circle_id,
+        let member_key: field = BHP256::hash_to_field(MemberKey {
+            circle_id:   circle_id,
             member_addr: claimer
         });
-        let member: MemberData = members.get(member_key);
+        let join_order: u8 = members.get(member_key);
+        assert_eq(join_order, cycle);
 
-        assert_eq(member.join_order, state.current_cycle);
+        let next_cycle: u8 = cycle + 1u8;
+        let is_done:   bool = next_cycle > info.total_cycles;
 
-        members.set(member_key, MemberData {
-            join_order: member.join_order,
-            total_contributed: member.total_contributed,
-            has_received_payout: true
-        });
-
-        let next_cycle: u8 = state.current_cycle + 1u8;
-        let is_complete: bool = next_cycle > config.max_members;
-
-        circle_states.set(circle_id, CircleState {
-            current_cycle: is_complete ? state.current_cycle : next_cycle,
-            members_joined: state.members_joined,
-            start_block: state.start_block,
-            last_payout_cycle: state.current_cycle
-        });
-
-        circles.set(circle_id, CircleConfig {
-            contribution_amount: config.contribution_amount,
-            max_members: config.max_members,
-            cycle_duration_blocks: config.cycle_duration_blocks,
-            creator: config.creator,
-            status: is_complete ? 2u8 : 1u8
+        circles.set(circle_id, CircleInfo {
+            contribution_amount: info.contribution_amount,
+            max_members:         info.max_members,
+            total_cycles:        info.total_cycles,
+            current_cycle:       is_done ? cycle : next_cycle,
+            members_joined:      info.members_joined,
+            status:              is_done ? 2u8 : 1u8
         });
     }
 
-    async transition cancel_circle(
-        public circle_id: field
-    ) -> Future {
+    // Cancel a circle while it is still forming (creator only).
+    async transition cancel_circle(public circle_id: field) -> Future {
         return finalize_cancel_circle(circle_id, self.signer);
     }
 
-    async function finalize_cancel_circle(
-        circle_id: field,
-        caller: address
-    ) {
-        let config: CircleConfig = circles.get(circle_id);
-        assert_eq(caller, config.creator);
-        assert_eq(config.status, 0u8);
+    async function finalize_cancel_circle(circle_id: field, caller: address) {
+        let info: CircleInfo = circles.get(circle_id);
+        assert_eq(info.status, 0u8);
+        // Creator is the member with join_order == 1
+        let member_key: field = BHP256::hash_to_field(MemberKey {
+            circle_id:   circle_id,
+            member_addr: caller
+        });
+        let join_order: u8 = members.get(member_key);
+        assert_eq(join_order, 1u8);
 
-        circles.set(circle_id, CircleConfig {
-            contribution_amount: config.contribution_amount,
-            max_members: config.max_members,
-            cycle_duration_blocks: config.cycle_duration_blocks,
-            creator: config.creator,
-            status: 3u8
+        circles.set(circle_id, CircleInfo {
+            contribution_amount: info.contribution_amount,
+            max_members:         info.max_members,
+            total_cycles:        info.total_cycles,
+            current_cycle:       info.current_cycle,
+            members_joined:      info.members_joined,
+            status:              3u8
         });
     }
 
-    // Transfer membership to a new owner (private record transfer)
+    // Transfer membership to another address — pure private record transformation,
+    // no on-chain state change needed.
     transition transfer_membership(
-        membership: CircleMembership,
+        membership:       CircleMembership,
         public new_owner: address
     ) -> CircleMembership {
-        assert_eq(self.signer, membership.owner);
         return CircleMembership {
-            owner: new_owner,
-            circle_id: membership.circle_id,
-            contribution_amount: membership.contribution_amount,
-            salt: membership.salt
+            owner:               new_owner,
+            circle_id:           membership.circle_id,
+            contribution_amount: membership.contribution_amount
         };
     }
 
-    // Verify membership exists on-chain — asserts the caller is a registered member
-    async transition verify_membership(
-        public circle_id: field
-    ) -> Future {
+    // Prove on-chain that self.signer is a registered member.
+    async transition verify_membership(public circle_id: field) -> Future {
         return finalize_verify_membership(circle_id, self.signer);
     }
 
-    async function finalize_verify_membership(
-        circle_id: field,
-        member_addr: address
-    ) {
-        let member_key: field = BHP256::hash_to_field(MemberKeyInput {
-            circle_id: circle_id,
+    async function finalize_verify_membership(circle_id: field, member_addr: address) {
+        let member_key: field = BHP256::hash_to_field(MemberKey {
+            circle_id:   circle_id,
             member_addr: member_addr
         });
-        let is_member: bool = members.contains(member_key);
-        assert(is_member);
+        assert(members.contains(member_key));
     }
 }

@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react'
 import { useWallet } from '@provablehq/aleo-wallet-adaptor-react'
 import { updateCircleMembershipBackend } from '../services/api'
 
-const PROGRAM_ID = import.meta.env.VITE_PROGRAM_ID || 'zk_circles_v2.aleo'
+const PROGRAM_ID = import.meta.env.VITE_PROGRAM_ID || 'zk_circles_v4.aleo'
 const BASE_FEE = 1_000_000 // 1 ALEO in microcredits
 
 interface JoinCircleResult {
@@ -29,11 +29,9 @@ export function useJoinCircle() {
     setTransactionStatus('Preparing to join...')
 
     try {
-      const salt = `${BigInt(Math.floor(Math.random() * Number.MAX_SAFE_INTEGER))}field`
       const inputs = [
         circleId,                    // circle_id: field
-        `${contributionAmount}u64`,  // contribution_amount: u64
-        salt,                        // salt: field
+        `${contributionAmount}u64`,  // contribution_amount: u64 (verified against config in finalize)
       ]
 
       setTransactionStatus('Awaiting wallet approval...')
@@ -65,13 +63,10 @@ export function useJoinCircle() {
 
       // Update backend (non-critical)
       try {
-        // Generate a random salt for membership verification
-        const salt = Math.floor(Math.random() * 1000000000).toString() + 'field'
         await updateCircleMembershipBackend({
           circleId,
           memberAddress: address,
           transactionId: txId,
-          salt,
         })
       } catch (backendError) {
         console.warn('Backend update failed (non-critical):', backendError)

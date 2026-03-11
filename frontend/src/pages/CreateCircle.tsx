@@ -80,15 +80,11 @@ export default function CreateCircle() {
         parseFloat(formData.contributionAmount) * 1_000_000
       )
       
-      // Convert cycle duration from days to approximate block count
-      // Assuming ~1 block per 3.6 seconds, ~24000 blocks per day
-      const cycleBlocks = parseInt(formData.cycleDuration) * 24000
-
       const result = await createCircle({
         name: formData.name,
         contributionAmount: contributionMicrocredits,
         maxMembers: parseInt(formData.maxMembers),
-        cycleDurationBlocks: cycleBlocks,
+        totalCycles: parseInt(formData.maxMembers), // one cycle per member
       })
 
       if (result.success) {
