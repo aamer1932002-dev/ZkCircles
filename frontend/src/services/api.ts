@@ -242,6 +242,7 @@ export async function saveCircleToBackend(data: {
   totalCycles: number
   transactionId: string
   status: number
+  cycleDurationBlocks?: number
 }): Promise<void> {
   // Always save to local storage as backup
   const localData = getLocalData()

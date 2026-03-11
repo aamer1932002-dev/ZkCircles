@@ -486,15 +486,19 @@ app.post('/api/circles', async (req, res) => {
     const {
       circleId,
       name,
-      nameHash,
       creator,
       contributionAmount,
       maxMembers,
-      cycleDurationBlocks,
-      salt,
+      totalCycles,
       transactionId,
       status,
+      // optional / legacy fields — may not be sent by the frontend
+      nameHash = null,
+      cycleDurationBlocks = 0,
+      salt = null,
     } = req.body
+
+    const resolvedTotalCycles = totalCycles || maxMembers || 0
 
     // Mock mode
     if (USE_MOCK) {
@@ -505,9 +509,9 @@ app.post('/api/circles', async (req, res) => {
         contribution_amount: contributionAmount,
         max_members: maxMembers,
         cycle_duration_blocks: cycleDurationBlocks,
-        total_cycles: maxMembers,
+        total_cycles: resolvedTotalCycles,
         status: status,
-        current_cycle: 0,
+        current_cycle: 1,
         members_joined: 1,
         created_at: new Date().toISOString(),
       }
@@ -515,41 +519,54 @@ app.post('/api/circles', async (req, res) => {
       return res.json({ success: true, circleId })
     }
 
+    // Build insert object — omit nullable optional columns when not provided
+    const circleInsert = {
+      circle_id: circleId,
+      name: name ? encrypt(name) : null,
+      creator: encrypt(creator),
+      contribution_amount: contributionAmount,
+      max_members: maxMembers,
+      cycle_duration_blocks: cycleDurationBlocks,
+      total_cycles: resolvedTotalCycles,
+      transaction_id: transactionId,
+      status: status ?? 0,
+      current_cycle: 1,
+      members_joined: 1,
+    }
+    // Only include nullable columns when the caller actually sends them
+    if (nameHash != null) circleInsert.name_hash = nameHash
+    if (salt != null) circleInsert.salt = salt
+
     // Insert circle
     const { error: circleError } = await supabase
       .from('circles')
-      .insert({
-        circle_id: circleId,
-        name: name ? encrypt(name) : null,
-        name_hash: nameHash,
-        creator: encrypt(creator),
-        contribution_amount: contributionAmount,
-        max_members: maxMembers,
-        cycle_duration_blocks: cycleDurationBlocks,
-        total_cycles: maxMembers,
-        salt: salt,
-        transaction_id: transactionId,
-        status: status,
-        current_cycle: 0,
-        members_joined: 1,
-      })
+      .insert(circleInsert)
 
-    if (circleError) throw circleError
+    if (circleError) {
+      console.error('[POST /api/circles] Supabase insert error:', circleError)
+      throw circleError
+    }
 
     // Add creator as first member
+    const memberInsert = {
+      circle_id: circleId,
+      member_address: encrypt(creator),
+      join_order: 1,
+      total_contributed: 0,
+      has_received_payout: false,
+      active: true,
+      transaction_id: transactionId,
+    }
+    if (salt != null) memberInsert.salt = salt
+
     const { error: memberError } = await supabase
       .from('members')
-      .insert({
-        circle_id: circleId,
-        member_address: encrypt(creator),
-        join_order: 1,
-        total_contributed: 0,
-        has_received_payout: false,
-        active: true,
-        salt: salt,
-      })
+      .insert(memberInsert)
 
-    if (memberError) throw memberError
+    if (memberError) {
+      console.error('[POST /api/circles] Member insert error:', memberError)
+      throw memberError
+    }
 
     res.json({ success: true, circleId })
   } catch (error) {
@@ -599,11 +616,9 @@ app.post('/api/circles/:circleId/members', async (req, res) => {
         total_contributed: 0,
         has_received_payout: false,
         active: true,
-        salt: salt,
+        salt: salt || null,
         transaction_id: transactionId,
       })
-
-    if (memberError) throw memberError
 
     // Update circle member count
     const updateData = { members_joined: newJoinOrder }
