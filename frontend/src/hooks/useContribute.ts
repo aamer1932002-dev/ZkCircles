@@ -13,25 +13,41 @@ const BASE_FEE = FEE_CONTRIBUTE
 const DEFAULT_POT_ADDRESS = CIRCLE_POT_ADDRESS
 
 /**
- * Rebuild a Leo record plaintext string from a WalletAdapterRecord.
- * The Provable SDK stores parsed fields in r.data rather than a raw string.
+ * Rebuild a CircleMembership Leo record plaintext from a WalletAdapterRecord.
+ * Fields MUST be in declaration order: owner, circle_id, contribution_amount.
+ * Object.entries() order is unreliable, so we build explicitly.
  */
-function reconstructPlaintext(r: any): string {
+function reconstructMembershipPlaintext(r: any): string {
   const raw: string | undefined = r.recordPlaintext || r.plaintext || r.record
   if (raw && typeof raw === 'string') return raw
   if (!r.data) return ''
-  const fields = Object.entries(r.data as Record<string, string>)
-    .map(([k, v]) => `  ${k}: ${v}`)
-    .join(',\n')
-  return `{\n  owner: ${r.owner},\n${fields}\n}`
+  const owner = r.owner ? `${r.owner}.private` : (r.data.owner || '')
+  const circleId = r.data.circle_id || ''
+  const contribAmt = r.data.contribution_amount || ''
+  return `{\n  owner: ${owner},\n  circle_id: ${circleId},\n  contribution_amount: ${contribAmt}\n}`
 }
 
 /**
- * Match a single record against the target circleId.
+ * Return true only for CircleMembership records.
+ * CircleMembership has `contribution_amount` but NOT `cycle`.
+ * ContributionReceipt and PayoutReceipt both have `cycle` — reject them.
+ */
+function isMembershipRecord(r: any, pt?: string): boolean {
+  if (r.data) {
+    return 'contribution_amount' in r.data && !('cycle' in r.data)
+  }
+  if (pt) {
+    return pt.includes('contribution_amount') && !/(\bcycle\b.*:)/.test(pt)
+  }
+  return true // unknown structure — allow and let the wallet reject if wrong
+}
+
+/**
+ * Match a single CircleMembership record against the target circleId.
  * Returns plaintext string or null.
  */
 function matchRecord(r: any, circleId: string, bareId: string): string | null {
-  // Strategy 1: Provable SDK parsed data object  r.data.circle_id
+  // Strategy 1: Provable SDK parsed data object r.data.circle_id
   if (r.data?.circle_id) {
     const storedId = String(r.data.circle_id).replace('.private', '').replace('.public', '')
     if (
@@ -39,14 +55,18 @@ function matchRecord(r: any, circleId: string, bareId: string): string | null {
       storedId === bareId ||
       storedId.replace(/field$/i, '') === bareId
     ) {
-      return reconstructPlaintext(r)
+      if (!isMembershipRecord(r)) return null // reject ContributionReceipt / PayoutReceipt
+      return reconstructMembershipPlaintext(r)
     }
   }
 
   // Strategy 2: Pre-decoded plaintext string
   const pt: string | undefined = r.recordPlaintext || r.plaintext || r.record
   if (pt && typeof pt === 'string') {
-    if (pt.includes(circleId) || pt.includes(bareId)) return pt
+    if (pt.includes(circleId) || pt.includes(bareId)) {
+      if (!isMembershipRecord(r, pt)) return null
+      return pt
+    }
   }
 
   return null

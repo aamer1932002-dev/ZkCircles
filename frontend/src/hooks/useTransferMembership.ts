@@ -10,24 +10,36 @@ import { PROGRAM_ID, FEE_TRANSFER } from '../config'
 
 const BASE_FEE = FEE_TRANSFER
 
-function reconstructPlaintext(r: any): string {
+function reconstructMembershipPlaintext(r: any): string {
   const raw: string | undefined = r.recordPlaintext || r.plaintext || r.record
   if (raw && typeof raw === 'string') return raw
   if (!r.data) return ''
-  const fields = Object.entries(r.data as Record<string, string>)
-    .map(([k, v]) => `  ${k}: ${v}`)
-    .join(',\n')
-  return `{\n  owner: ${r.owner},\n${fields}\n}`
+  // Fields in Leo struct declaration order: owner, circle_id, contribution_amount
+  const owner = r.owner ? `${r.owner}.private` : (r.data.owner || '')
+  const circleId = r.data.circle_id || ''
+  const contribAmt = r.data.contribution_amount || ''
+  return `{\n  owner: ${owner},\n  circle_id: ${circleId},\n  contribution_amount: ${contribAmt}\n}`
+}
+
+function isMembershipRecord(r: any, pt?: string): boolean {
+  if (r.data) return 'contribution_amount' in r.data && !('cycle' in r.data)
+  if (pt) return pt.includes('contribution_amount') && !/(\bcycle\b.*:)/.test(pt)
+  return true
 }
 
 function matchRecord(r: any, circleId: string, bareId: string): string | null {
   if (r.data?.circle_id) {
     const sid = String(r.data.circle_id).replace('.private', '').replace('.public', '')
-    if (sid === circleId || sid === bareId || sid.replace(/field$/i, '') === bareId)
-      return reconstructPlaintext(r)
+    if (sid === circleId || sid === bareId || sid.replace(/field$/i, '') === bareId) {
+      if (!isMembershipRecord(r)) return null
+      return reconstructMembershipPlaintext(r)
+    }
   }
   const pt: string | undefined = r.recordPlaintext || r.plaintext || r.record
-  if (pt && typeof pt === 'string' && (pt.includes(circleId) || pt.includes(bareId))) return pt
+  if (pt && typeof pt === 'string' && (pt.includes(circleId) || pt.includes(bareId))) {
+    if (!isMembershipRecord(r, pt)) return null
+    return pt
+  }
   return null
 }
 
