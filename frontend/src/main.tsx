@@ -26,7 +26,15 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       decryptPermission={DecryptPermission.AutoDecrypt}
       programs={[PROGRAM_ID, 'credits.aleo']}
       network={Network.TESTNET}
-      autoConnect
+      autoConnect={false}
+      onError={(error) => {
+        // Swallow benign startup errors (extension not ready, no previous session)
+        if (
+          error.message?.includes('No response') ||
+          error.message?.includes('Wallet not selected')
+        ) return
+        console.error('[WalletProvider]', error.message)
+      }}
     >
       <BrowserRouter>
         <App />

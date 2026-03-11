@@ -46,14 +46,31 @@ export default function WalletButton() {
   }
 
   const handleWalletSelect = async (walletName: string) => {
+    // Refuse to attempt connecting to wallets that aren't installed
+    const wallet = wallets.find(w => w.adapter.name === walletName)
+    if (!wallet) return
+    if (wallet.readyState !== 'Installed') {
+      const installUrl = (wallet.adapter as any).url as string | undefined
+      if (installUrl) window.open(installUrl, '_blank', 'noopener')
+      return
+    }
+
     try {
       selectWallet(walletName as any)
-      // Wait a moment for selection to register
-      await new Promise(resolve => setTimeout(resolve, 100))
+      // Give the adapter state a full tick to settle before connecting
+      await new Promise(resolve => setTimeout(resolve, 300))
       await connect(Network.TESTNET)
       setShowWalletSelect(false)
-    } catch (error) {
-      console.error('Failed to connect:', error)
+    } catch (error: any) {
+      // Surface meaningful feedback instead of a raw console trace
+      const msg: string = error?.message ?? ''
+      if (msg.includes('No response')) {
+        console.warn('Wallet extension did not respond — is it unlocked?')
+      } else if (msg.includes('User rejected') || msg.includes('cancelled')) {
+        console.info('Connection cancelled by user')
+      } else {
+        console.error('Failed to connect:', msg)
+      }
     }
   }
 
@@ -164,27 +181,37 @@ export default function WalletButton() {
                   No wallets detected. Please install Shield Wallet or Leo Wallet.
                 </p>
               ) : (
-                wallets.map((w) => (
-                  <button
-                    key={w.adapter.name}
-                    onClick={() => handleWalletSelect(w.adapter.name)}
-                    className="w-full flex items-center gap-3 p-3 hover:bg-amber-50 rounded-lg transition-colors"
-                  >
-                    {w.adapter.icon ? (
-                      <img src={w.adapter.icon} alt={w.adapter.name} className="w-8 h-8 rounded-lg" />
-                    ) : (
-                      <div className="w-8 h-8 bg-gradient-to-br from-amber-400 to-amber-600 rounded-lg flex items-center justify-center">
-                        <Wallet className="w-4 h-4 text-white" />
+                wallets.map((w) => {
+                  const installed = w.readyState === 'Installed'
+                  return (
+                    <button
+                      key={w.adapter.name}
+                      onClick={() => handleWalletSelect(w.adapter.name)}
+                      className={`w-full flex items-center gap-3 p-3 rounded-lg transition-colors ${
+                        installed
+                          ? 'hover:bg-amber-50 cursor-pointer'
+                          : 'opacity-50 cursor-default'
+                      }`}
+                    >
+                      {w.adapter.icon ? (
+                        <img src={w.adapter.icon} alt={w.adapter.name} className="w-8 h-8 rounded-lg" />
+                      ) : (
+                        <div className="w-8 h-8 bg-gradient-to-br from-amber-400 to-amber-600 rounded-lg flex items-center justify-center">
+                          <Wallet className="w-4 h-4 text-white" />
+                        </div>
+                      )}
+                      <div className="text-left flex-1">
+                        <p className="font-medium text-gray-800">{w.adapter.name}</p>
+                        <p className={`text-xs ${installed ? 'text-green-600' : 'text-gray-400'}`}>
+                          {installed ? 'Ready to connect' : 'Not installed — click to install'}
+                        </p>
                       </div>
-                    )}
-                    <div className="text-left">
-                      <p className="font-medium text-gray-800">{w.adapter.name}</p>
-                      <p className="text-xs text-gray-500">
-                        {w.readyState === 'Installed' ? 'Ready' : 'Not installed'}
-                      </p>
-                    </div>
-                  </button>
-                ))
+                      {installed && (
+                        <div className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0" />
+                      )}
+                    </button>
+                  )
+                })
               )}
             </div>
           </motion.div>
