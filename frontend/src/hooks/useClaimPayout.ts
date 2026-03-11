@@ -6,7 +6,7 @@ const PROGRAM_ID = import.meta.env.VITE_PROGRAM_ID || 'zk_circles_v5.aleo'
 const BASE_FEE = 1_000_000 // 1 ALEO in microcredits
 
 /**
- * Reconstruct a record plaintext string from a WalletAdapterRecord.
+ * Rebuild a Leo record plaintext string from a WalletAdapterRecord.
  * The Provable SDK returns parsed fields in `r.data` rather than a raw
  * plaintext string, so we rebuild the string the Leo VM expects.
  */
@@ -21,6 +21,35 @@ function reconstructPlaintext(r: any): string {
     .map(([k, v]) => `  ${k}: ${v}`)
     .join(',\n')
   return `{\n  owner: ${r.owner},\n${fields}\n}`
+}
+
+/**
+ * Retry-aware wrapper for requestRecords.
+ * Shield Wallet sometimes returns "No response" on the first call; retrying
+ * with exponential backoff resolves it in practice.
+ */
+async function requestRecordsWithRetry(
+  requestRecords: (program: string) => Promise<any>,
+  programId: string,
+  retries = 3
+): Promise<any[]> {
+  for (let attempt = 0; attempt < retries; attempt++) {
+    try {
+      const records = await requestRecords(programId)
+      return records || []
+    } catch (err: any) {
+      const isTimeout =
+        err?.message?.toLowerCase().includes('no response') ||
+        err?.message?.toLowerCase().includes('timeout')
+      if (!isTimeout || attempt === retries - 1) throw err
+      const delay = 600 * (attempt + 1)
+      console.warn(
+        `[requestRecords] Attempt ${attempt + 1} failed ("${err?.message}"). Retrying in ${delay}ms…`
+      )
+      await new Promise(r => setTimeout(r, delay))
+    }
+  }
+  return []
 }
 
 interface ClaimPayoutResult {
@@ -58,8 +87,8 @@ export function useClaimPayout() {
       // Find membership record for this circle
       let membershipPlaintext: string | null = null
       try {
-        const programRecords = await requestRecords(PROGRAM_ID) || []
-        console.log('[ClaimPayout] Program records count:', (programRecords as any[]).length)
+        const programRecords = await requestRecordsWithRetry(requestRecords, PROGRAM_ID)
+        console.log('[ClaimPayout] Program records count:', programRecords.length)
         if ((programRecords as any[]).length > 0) {
           console.log('[ClaimPayout] First record shape:', JSON.stringify((programRecords as any[])[0]))
         }
