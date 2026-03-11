@@ -620,6 +620,8 @@ app.post('/api/circles/:circleId/members', async (req, res) => {
         transaction_id: transactionId,
       })
 
+    if (memberError) throw memberError
+
     // Update circle member count
     const updateData = { members_joined: newJoinOrder }
     
