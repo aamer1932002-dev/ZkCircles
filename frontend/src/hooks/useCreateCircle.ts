@@ -4,6 +4,7 @@ import { generateSalt, hashToField } from '../utils/aleo-utils'
 import { saveCircleToBackend } from '../services/api'
 import { setCachedMembership, setJoinTxId } from '../utils/membershipCache'
 import { PROGRAM_ID, FEE_CREATE } from '../config'
+import { isStalePermissionsError, STALE_PERMISSIONS_USER_MSG, dispatchStalePermissionsEvent } from '../utils/walletErrors'
 
 const BASE_FEE = FEE_CREATE
 
@@ -22,7 +23,7 @@ interface CreateCircleResult {
 }
 
 export function useCreateCircle() {
-  const { connected, address, executeTransaction, requestRecords } = useWallet()
+  const { connected, address, executeTransaction, requestRecords, disconnect } = useWallet()
   const [isCreating, setIsCreating] = useState(false)
   const [transactionStatus, setTransactionStatus] = useState<string | null>(null)
 
@@ -137,12 +138,17 @@ export function useCreateCircle() {
       console.error('[CreateCircle] Error:', error)
       setIsCreating(false)
       setTransactionStatus(null)
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+      const msg = error instanceof Error ? error.message : 'Unknown error'
+      if (isStalePermissionsError(msg)) {
+        try { await disconnect?.() } catch { /* ignore */ }
+        dispatchStalePermissionsEvent()
+        setIsCreating(false)
+        setTransactionStatus(null)
+        return { success: false, error: STALE_PERMISSIONS_USER_MSG }
       }
+      return { success: false, error: msg }
     }
-  }, [connected, address, executeTransaction])
+  }, [connected, address, executeTransaction, disconnect])
 
   return {
     createCircle,

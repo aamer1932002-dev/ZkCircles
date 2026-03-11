@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react'
 import { useWallet } from '@provablehq/aleo-wallet-adaptor-react'
 import { getCachedMembership } from '../utils/membershipCache'
 import { PROGRAM_ID, FEE_VERIFY } from '../config'
+import { isStalePermissionsError, STALE_PERMISSIONS_USER_MSG, dispatchStalePermissionsEvent } from '../utils/walletErrors'
 
 const BASE_FEE = FEE_VERIFY
 
@@ -13,7 +14,7 @@ interface VerifyResult {
 }
 
 export function useVerifyMembership() {
-  const { connected, address, executeTransaction, requestRecords } = useWallet()
+  const { connected, address, executeTransaction, requestRecords, disconnect } = useWallet()
   const [isVerifying, setIsVerifying] = useState(false)
   const [transactionStatus, setTransactionStatus] = useState<string | null>(null)
 
@@ -48,10 +49,18 @@ export function useVerifyMembership() {
       setTransactionStatus(null)
       return { success: true, isVerified: true, transactionId: txId }
     } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Unknown error'
+      if (isStalePermissionsError(msg)) {
+        try { await disconnect?.() } catch { /* ignore */ }
+        dispatchStalePermissionsEvent()
+        setIsVerifying(false)
+        setTransactionStatus(null)
+        return { success: false, error: STALE_PERMISSIONS_USER_MSG }
+      }
       console.error('[VerifyMembership] Error:', error)
       setIsVerifying(false)
       setTransactionStatus(null)
-      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+      return { success: false, error: msg }
     }
   }, [connected, address, executeTransaction])
 

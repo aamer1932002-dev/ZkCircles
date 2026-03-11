@@ -8,6 +8,7 @@ import {
   synthesizeMembershipRecord,
 } from '../utils/membershipCache'
 import { PROGRAM_ID, FEE_CONTRIBUTE } from '../config'
+import { isStalePermissionsError, STALE_PERMISSIONS_USER_MSG, dispatchStalePermissionsEvent } from '../utils/walletErrors'
 
 const BASE_FEE = FEE_CONTRIBUTE
 
@@ -153,7 +154,7 @@ interface ContributeResult {
 }
 
 export function useContribute() {
-  const { connected, address, executeTransaction, requestRecords, decrypt } = useWallet()
+  const { connected, address, executeTransaction, requestRecords, decrypt, disconnect } = useWallet()
   const [isContributing, setIsContributing] = useState(false)
   const [transactionStatus, setTransactionStatus] = useState<string | null>(null)
 
@@ -242,12 +243,20 @@ export function useContribute() {
       setTransactionStatus(null)
       return { success: true, transactionId: txId }
     } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Unknown error'
+      if (isStalePermissionsError(msg)) {
+        try { await disconnect?.() } catch { /* ignore */ }
+        dispatchStalePermissionsEvent()
+        setIsContributing(false)
+        setTransactionStatus(null)
+        return { success: false, error: STALE_PERMISSIONS_USER_MSG }
+      }
       console.error('Contribute error:', error)
       setIsContributing(false)
       setTransactionStatus(null)
-      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+      return { success: false, error: msg }
     }
-  }, [connected, address, executeTransaction, requestRecords, decrypt])
+  }, [connected, address, executeTransaction, requestRecords, decrypt, disconnect])
 
   return { contribute, isContributing, transactionStatus }
 }

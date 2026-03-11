@@ -9,6 +9,7 @@ import {
   fetchRecordCiphertextFromChain,
 } from '../utils/membershipCache'
 import { PROGRAM_ID, FEE_CLAIM } from '../config'
+import { isStalePermissionsError, STALE_PERMISSIONS_USER_MSG, dispatchStalePermissionsEvent } from '../utils/walletErrors'
 
 const BASE_FEE = FEE_CLAIM
 
@@ -91,7 +92,7 @@ interface ClaimResult {
 }
 
 export function useClaimPayout() {
-  const { connected, address, executeTransaction, requestRecords, decrypt } = useWallet()
+  const { connected, address, executeTransaction, requestRecords, decrypt, disconnect } = useWallet()
   const [isClaiming, setIsClaiming] = useState(false)
   const [transactionStatus, setTransactionStatus] = useState<string | null>(null)
 
@@ -184,10 +185,18 @@ export function useClaimPayout() {
       setTransactionStatus(null)
       return { success: true, transactionId: txId }
     } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Unknown error'
+      if (isStalePermissionsError(msg)) {
+        try { await disconnect?.() } catch { /* ignore */ }
+        dispatchStalePermissionsEvent()
+        setIsClaiming(false)
+        setTransactionStatus(null)
+        return { success: false, error: STALE_PERMISSIONS_USER_MSG }
+      }
       console.error('ClaimPayout error:', error)
       setIsClaiming(false)
       setTransactionStatus(null)
-      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+      return { success: false, error: msg }
     }
   }, [connected, address, executeTransaction, requestRecords, decrypt])
 

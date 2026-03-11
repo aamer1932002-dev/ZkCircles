@@ -3,6 +3,7 @@ import { useWallet } from '@provablehq/aleo-wallet-adaptor-react'
 import { Network } from '@provablehq/aleo-types'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Wallet, ChevronDown, LogOut, Copy, Check, X, Loader2 } from 'lucide-react'
+import { STALE_PERMISSIONS_EVENT } from '../utils/walletErrors'
 
 export default function WalletButton() {
   const { 
@@ -17,6 +18,7 @@ export default function WalletButton() {
   
   const [showDropdown, setShowDropdown] = useState(false)
   const [showWalletSelect, setShowWalletSelect] = useState(false)
+  const [stalePermissions, setStalePermissions] = useState(false)
   const [copied, setCopied] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
@@ -30,6 +32,17 @@ export default function WalletButton() {
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  // Auto-open reconnect panel when a stale-permissions error is detected in any hook
+  useEffect(() => {
+    const handler = () => {
+      setShowDropdown(false)
+      setStalePermissions(true)
+      setShowWalletSelect(true)
+    }
+    window.addEventListener(STALE_PERMISSIONS_EVENT, handler)
+    return () => window.removeEventListener(STALE_PERMISSIONS_EVENT, handler)
   }, [])
 
   const truncateAddress = (addr: string) => {
@@ -61,6 +74,7 @@ export default function WalletButton() {
       await new Promise(resolve => setTimeout(resolve, 300))
       await connect(Network.TESTNET)
       setShowWalletSelect(false)
+      setStalePermissions(false)
     } catch (error: any) {
       // Surface meaningful feedback instead of a raw console trace
       const msg: string = error?.message ?? ''
@@ -169,12 +183,17 @@ export default function WalletButton() {
             <div className="p-4 border-b border-gray-100 flex items-center justify-between">
               <h3 className="font-semibold text-gray-800">Connect Wallet</h3>
               <button
-                onClick={() => setShowWalletSelect(false)}
+                onClick={() => { setShowWalletSelect(false); setStalePermissions(false) }}
                 className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
               >
                 <X className="w-4 h-4 text-gray-500" />
               </button>
             </div>
+            {stalePermissions && (
+              <div className="mx-3 mt-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
+                <strong>Reconnect required</strong> — your wallet session was for an older contract version. Please select your wallet again to grant access to <code>zk_circles_v6.aleo</code>.
+              </div>
+            )}
             <div className="p-2">
               {wallets.length === 0 ? (
                 <p className="text-sm text-gray-500 p-3 text-center">

@@ -3,6 +3,7 @@ import { useWallet } from '@provablehq/aleo-wallet-adaptor-react'
 import { updateCircleMembershipBackend } from '../services/api'
 import { setCachedMembership, setJoinTxId } from '../utils/membershipCache'
 import { PROGRAM_ID, FEE_JOIN } from '../config'
+import { isStalePermissionsError, STALE_PERMISSIONS_USER_MSG, dispatchStalePermissionsEvent } from '../utils/walletErrors'
 
 const BASE_FEE = FEE_JOIN
 
@@ -13,7 +14,7 @@ interface JoinCircleResult {
 }
 
 export function useJoinCircle() {
-  const { connected, address, executeTransaction, requestRecords } = useWallet()
+  const { connected, address, executeTransaction, requestRecords, disconnect } = useWallet()
   const [isJoining, setIsJoining] = useState(false)
   const [transactionStatus, setTransactionStatus] = useState<string | null>(null)
 
@@ -112,12 +113,17 @@ export function useJoinCircle() {
       console.error('[JoinCircle] Error:', error)
       setIsJoining(false)
       setTransactionStatus(null)
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+      const msg = error instanceof Error ? error.message : 'Unknown error'
+      if (isStalePermissionsError(msg)) {
+        try { await disconnect?.() } catch { /* ignore */ }
+        dispatchStalePermissionsEvent()
+        setIsJoining(false)
+        setTransactionStatus(null)
+        return { success: false, error: STALE_PERMISSIONS_USER_MSG }
       }
+      return { success: false, error: msg }
     }
-  }, [connected, address, executeTransaction])
+  }, [connected, address, executeTransaction, disconnect])
 
   return {
     joinCircle,

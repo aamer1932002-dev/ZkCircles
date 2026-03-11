@@ -27,12 +27,15 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       network={Network.TESTNET}
       autoConnect={false}
       onError={(error) => {
+        const msg = error.message ?? ''
+        // Stale permissions: auto-disconnect so next connect re-registers programs
+        if (msg.includes('not in the allowed programs') || msg.includes('request it when connect')) {
+          window.dispatchEvent(new CustomEvent('wallet-stale-permissions'))
+          return
+        }
         // Swallow benign startup errors (extension not ready, no previous session)
-        if (
-          error.message?.includes('No response') ||
-          error.message?.includes('Wallet not selected')
-        ) return
-        console.error('[WalletProvider]', error.message)
+        if (msg.includes('No response') || msg.includes('Wallet not selected')) return
+        console.error('[WalletProvider]', msg)
       }}
     >
       <BrowserRouter>

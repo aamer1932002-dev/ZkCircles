@@ -8,6 +8,7 @@ import {
   fetchRecordCiphertextFromChain,
 } from '../utils/membershipCache'
 import { PROGRAM_ID, FEE_TRANSFER } from '../config'
+import { isStalePermissionsError, STALE_PERMISSIONS_USER_MSG, dispatchStalePermissionsEvent } from '../utils/walletErrors'
 
 const BASE_FEE = FEE_TRANSFER
 
@@ -90,7 +91,7 @@ interface TransferResult {
 }
 
 export function useTransferMembership() {
-  const { connected, address, executeTransaction, requestRecords, decrypt } = useWallet()
+  const { connected, address, executeTransaction, requestRecords, decrypt, disconnect } = useWallet()
   const [isTransferring, setIsTransferring] = useState(false)
   const [transactionStatus, setTransactionStatus] = useState<string | null>(null)
 
@@ -170,6 +171,14 @@ export function useTransferMembership() {
       setTransactionStatus(null)
       return { success: true, transactionId: txId }
     } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Unknown error'
+      if (isStalePermissionsError(msg)) {
+        try { await disconnect?.() } catch { /* ignore */ }
+        dispatchStalePermissionsEvent()
+        setIsTransferring(false)
+        setTransactionStatus(null)
+        return { success: false, error: STALE_PERMISSIONS_USER_MSG }
+      }
       console.error('Transfer error:', error)
       setIsTransferring(false)
       setTransactionStatus(null)
