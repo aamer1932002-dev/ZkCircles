@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react'
 import { useWallet } from '@provablehq/aleo-wallet-adaptor-react'
 import { updateCircleMembershipBackend } from '../services/api'
-import { setCachedMembership } from '../utils/membershipCache'
+import { setCachedMembership, setJoinTxId } from '../utils/membershipCache'
 import { PROGRAM_ID, FEE_JOIN } from '../config'
 
 const BASE_FEE = FEE_JOIN
@@ -56,6 +56,7 @@ export function useJoinCircle() {
 
       const txId = String(result?.transactionId || result)
       console.log('[JoinCircle] Transaction ID:', txId)
+      setJoinTxId(address, circleId, txId)
       setTransactionStatus('Transaction submitted!')
 
       // Wait briefly then mark as success

@@ -4,8 +4,8 @@ import { recordPayoutBackend, getCircleDetail } from '../services/api'
 import {
   getCachedMembership,
   setCachedMembership,
-  clearCachedMembership,
-  synthesizeMembershipRecord,
+  getJoinTxId,
+  fetchRecordCiphertextFromChain,
 } from '../utils/membershipCache'
 import { PROGRAM_ID, FEE_CLAIM } from '../config'
 
@@ -23,56 +23,57 @@ function reconstructPlaintext(r: any): string {
 
 function matchRecord(r: any, circleId: string, bareId: string): string | null {
   if (r.data?.circle_id) {
-    const storedId = String(r.data.circle_id).replace('.private', '').replace('.public', '')
-    if (storedId === circleId || storedId === bareId || storedId.replace(/field$/i, '') === bareId) {
+    const sid = String(r.data.circle_id).replace('.private', '').replace('.public', '')
+    if (sid === circleId || sid === bareId || sid.replace(/field$/i, '') === bareId)
       return reconstructPlaintext(r)
-    }
   }
   const pt: string | undefined = r.recordPlaintext || r.plaintext || r.record
-  if (pt && typeof pt === 'string') {
-    if (pt.includes(circleId) || pt.includes(bareId)) return pt
-  }
+  if (pt && typeof pt === 'string' && (pt.includes(circleId) || pt.includes(bareId))) return pt
   return null
 }
 
-async function pollForMembershipRecord(
+async function pollWalletRecords(
   requestRecords: (program: string) => Promise<any>,
   decrypt: ((ct: string) => Promise<any>) | undefined,
   circleId: string,
-  onStatus: (msg: string) => void,
-  maxAttempts = 5
+  onStatus: (msg: string) => void
 ): Promise<string | null> {
   const bareId = circleId.replace(/field$/i, '')
   const delays = [0, 2000, 4000, 5000, 5000]
 
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    if (delays[attempt] > 0) {
-      onStatus(attempt === 1 ? 'Waiting for record to sync… (attempt 2/5)' : `Retrying wallet records… (attempt ${attempt + 1}/${maxAttempts})`)
-      await new Promise(r => setTimeout(r, delays[attempt]))
+  for (let i = 0; i < 5; i++) {
+    if (delays[i] > 0) {
+      onStatus(`Waiting for wallet sync… (${i + 1}/5)`)
+      await new Promise(r => setTimeout(r, delays[i]))
     }
     try {
       const records: any[] = (await requestRecords(PROGRAM_ID)) || []
-      console.log(`[ClaimPayout] requestRecords attempt ${attempt + 1}: ${records.length} records`)
-      if (attempt === 0 && records.length > 0) console.log('[ClaimPayout] Sample record:', JSON.stringify(records[0]))
+      console.log(`[ClaimPayout] wallet poll ${i + 1}: ${records.length} records`)
 
       for (const r of records) { if (r.spent) continue; const f = matchRecord(r, circleId, bareId); if (f) return f }
       for (const r of records) { const f = matchRecord(r, circleId, bareId); if (f) return f }
       if (decrypt) {
         for (const r of records) {
-          const ct: string | undefined = r.ciphertext || r.recordCiphertext
+          const ct = r.ciphertext || r.recordCiphertext
           if (!ct) continue
-          try { const dec = await decrypt(ct); const s = typeof dec === 'string' ? dec : JSON.stringify(dec); if (s.includes(circleId) || s.includes(bareId)) return s } catch { /* next */ }
+          if (typeof ct === 'string' && ct.startsWith('record1')) return ct
+          try {
+            const dec = await decrypt(ct)
+            const s = typeof dec === 'string' ? dec : JSON.stringify(dec)
+            if (s.includes(circleId) || s.includes(bareId)) return s
+          } catch { /* next */ }
         }
       }
-    } catch (err: any) { console.warn(`[ClaimPayout] attempt ${attempt + 1} error:`, err?.message) }
+    } catch (err: any) {
+      console.warn(`[ClaimPayout] wallet poll ${i + 1} error:`, err?.message)
+    }
   }
   return null
 }
 
-interface ClaimPayoutResult {
+interface ClaimResult {
   success: boolean
   transactionId?: string
-  amount?: number
   error?: string
 }
 
@@ -81,34 +82,57 @@ export function useClaimPayout() {
   const [isClaiming, setIsClaiming] = useState(false)
   const [transactionStatus, setTransactionStatus] = useState<string | null>(null)
 
-  const claimPayout = useCallback(async (circleId: string): Promise<ClaimPayoutResult> => {
+  const claimPayout = useCallback(async (
+    circleId: string
+  ): Promise<ClaimResult> => {
     if (!connected || !address) return { success: false, error: 'Wallet not connected' }
+    if (!executeTransaction || !requestRecords) return { success: false, error: 'Wallet does not support required features' }
 
     setIsClaiming(true)
-    setTransactionStatus('Fetching circle details…')
+    setTransactionStatus('Looking up your membership record…')
 
     try {
-      const response = await getCircleDetail(circleId)
-      const circle = response.circle
-      const cycleNumber = circle.currentCycle || 1
-      const payoutAmount = circle.contributionAmount * circle.maxMembers
+      let membershipInput: string | null = null
 
-      let membershipPlaintext: string | null = null
-      setTransactionStatus('Looking up your membership record…')
-
+      // ── Layer 1: cache ───────────────────────────────────────────────────
       const cached = getCachedMembership(address, circleId)
-      if (cached) { console.log('[ClaimPayout] Using cached record'); membershipPlaintext = cached }
-
-      if (!membershipPlaintext && requestRecords) {
-        membershipPlaintext = await pollForMembershipRecord(requestRecords, decrypt, circleId, (msg) => setTransactionStatus(msg))
+      if (cached) {
+        console.log('[ClaimPayout] cache hit')
+        membershipInput = cached
       }
 
-      if (membershipPlaintext) setCachedMembership(address, circleId, membershipPlaintext)
-
-      if (!membershipPlaintext) {
-        console.warn('[ClaimPayout] Using synthesized membership record')
-        membershipPlaintext = synthesizeMembershipRecord(address, circleId, circle.contributionAmount)
+      // ── Layer 2: poll wallet ─────────────────────────────────────────────
+      if (!membershipInput && requestRecords) {
+        membershipInput = await pollWalletRecords(requestRecords, decrypt, circleId, setTransactionStatus)
+        if (membershipInput) setCachedMembership(address, circleId, membershipInput)
       }
+
+      // ── Layer 3: fetch ciphertext from Aleo testnet ──────────────────────
+      if (!membershipInput) {
+        const txId = getJoinTxId(address, circleId)
+        if (txId) {
+          setTransactionStatus('Fetching record from Aleo testnet…')
+          console.log('[ClaimPayout] querying testnet for txId:', txId)
+          const ciphertext = await fetchRecordCiphertextFromChain(txId, PROGRAM_ID)
+          if (ciphertext) {
+            console.log('[ClaimPayout] got ciphertext from chain')
+            membershipInput = ciphertext
+            setCachedMembership(address, circleId, ciphertext)
+          }
+        }
+      }
+
+      if (!membershipInput) {
+        throw new Error(
+          'Membership record not found in your wallet.\n\n' +
+          '• Ensure you joined this circle and the transaction is confirmed.\n' +
+          '• Open Shield Wallet and tap "Sync" to force a record refresh, then try again.'
+        )
+      }
+
+      // ── Get current cycle ────────────────────────────────────────────────
+      const response = await getCircleDetail(circleId)
+      const cycleNumber = Number(response.circle.currentCycle) || 1
 
       setTransactionStatus('Awaiting wallet approval…')
 
@@ -116,8 +140,8 @@ export function useClaimPayout() {
         program: PROGRAM_ID,
         function: 'claim_payout',
         inputs: [
-          membershipPlaintext,
-          `${cycleNumber}u8`,
+          membershipInput,       // membership: CircleMembership
+          `${cycleNumber}u8`,    // cycle: u8 (public)
         ],
         fee: BASE_FEE,
         privateFee: false,
@@ -125,18 +149,18 @@ export function useClaimPayout() {
 
       const txId = String((result as any)?.transactionId || result)
       console.log('[ClaimPayout] TX:', txId)
-      clearCachedMembership(address, circleId)
+      setTransactionStatus('Payout claimed!')
+      await new Promise(r => setTimeout(r, 2000))
 
-      try { await recordPayoutBackend({ circleId, memberAddress: address, cycle: cycleNumber, amount: payoutAmount, transactionId: txId }) }
-      catch (e) { console.warn('[ClaimPayout] Backend failed:', e) }
+      try {
+        await recordPayoutBackend({ circleId, memberAddress: address, cycle: cycleNumber, amount: 0, transactionId: txId })
+      } catch (e) { console.warn('[ClaimPayout] backend failed:', e) }
 
-      setTransactionStatus(`Payout of ${(payoutAmount / 1_000_000).toFixed(3)} ALEO claimed!`)
-      await new Promise(r => setTimeout(r, 1500))
       setIsClaiming(false)
       setTransactionStatus(null)
-      return { success: true, transactionId: txId, amount: payoutAmount }
+      return { success: true, transactionId: txId }
     } catch (error) {
-      console.error('Claim payout error:', error)
+      console.error('ClaimPayout error:', error)
       setIsClaiming(false)
       setTransactionStatus(null)
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }

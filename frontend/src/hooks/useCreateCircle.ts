@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react'
 import { useWallet } from '@provablehq/aleo-wallet-adaptor-react'
 import { generateSalt, hashToField } from '../utils/aleo-utils'
 import { saveCircleToBackend } from '../services/api'
-import { setCachedMembership } from '../utils/membershipCache'
+import { setCachedMembership, setJoinTxId } from '../utils/membershipCache'
 import { PROGRAM_ID, FEE_CREATE } from '../config'
 
 const BASE_FEE = FEE_CREATE
@@ -72,6 +72,7 @@ export function useCreateCircle() {
 
       const txId = String(result?.transactionId || result)
       console.log('[CreateCircle] Transaction ID:', txId)
+      setJoinTxId(address, circleId, txId)
       
       setTransactionStatus('Transaction submitted to wallet!')
 

@@ -2,19 +2,13 @@ import { useState, useCallback } from 'react'
 import { useWallet } from '@provablehq/aleo-wallet-adaptor-react'
 import {
   getCachedMembership,
-  clearCachedMembership,
-  synthesizeMembershipRecord,
+  setCachedMembership,
+  getJoinTxId,
+  fetchRecordCiphertextFromChain,
 } from '../utils/membershipCache'
 import { PROGRAM_ID, FEE_TRANSFER } from '../config'
-import { getCircleDetail } from '../services/api'
 
 const BASE_FEE = FEE_TRANSFER
-
-interface TransferResult {
-  success: boolean
-  transactionId?: string
-  error?: string
-}
 
 function reconstructPlaintext(r: any): string {
   const raw: string | undefined = r.recordPlaintext || r.plaintext || r.record
@@ -26,7 +20,18 @@ function reconstructPlaintext(r: any): string {
   return `{\n  owner: ${r.owner},\n${fields}\n}`
 }
 
-async function pollForMembershipRecord(
+function matchRecord(r: any, circleId: string, bareId: string): string | null {
+  if (r.data?.circle_id) {
+    const sid = String(r.data.circle_id).replace('.private', '').replace('.public', '')
+    if (sid === circleId || sid === bareId || sid.replace(/field$/i, '') === bareId)
+      return reconstructPlaintext(r)
+  }
+  const pt: string | undefined = r.recordPlaintext || r.plaintext || r.record
+  if (pt && typeof pt === 'string' && (pt.includes(circleId) || pt.includes(bareId))) return pt
+  return null
+}
+
+async function pollWalletRecords(
   requestRecords: (program: string) => Promise<any>,
   decrypt: ((ct: string) => Promise<any>) | undefined,
   circleId: string,
@@ -35,29 +40,22 @@ async function pollForMembershipRecord(
   const bareId = circleId.replace(/field$/i, '')
   const delays = [0, 2000, 4000, 5000, 5000]
 
-  for (let attempt = 0; attempt < 5; attempt++) {
-    if (delays[attempt] > 0) {
-      onStatus(`Retrying wallet records… (attempt ${attempt + 1}/5)`)
-      await new Promise(r => setTimeout(r, delays[attempt]))
+  for (let i = 0; i < 5; i++) {
+    if (delays[i] > 0) {
+      onStatus(`Waiting for wallet sync… (${i + 1}/5)`)
+      await new Promise(r => setTimeout(r, delays[i]))
     }
     try {
       const records: any[] = (await requestRecords(PROGRAM_ID)) || []
-      const match = (r: any) => {
-        if (r.data?.circle_id) {
-          const sid = String(r.data.circle_id).replace('.private', '').replace('.public', '')
-          if (sid === circleId || sid === bareId || sid.replace(/field$/i, '') === bareId)
-            return reconstructPlaintext(r)
-        }
-        const pt = r.recordPlaintext || r.plaintext || r.record
-        if (pt && typeof pt === 'string' && (pt.includes(circleId) || pt.includes(bareId))) return pt
-        return null
-      }
-      for (const r of records) { if (r.spent) continue; const f = match(r); if (f) return f }
-      for (const r of records) { const f = match(r); if (f) return f }
+      console.log(`[Transfer] wallet poll ${i + 1}: ${records.length} records`)
+
+      for (const r of records) { if (r.spent) continue; const f = matchRecord(r, circleId, bareId); if (f) return f }
+      for (const r of records) { const f = matchRecord(r, circleId, bareId); if (f) return f }
       if (decrypt) {
         for (const r of records) {
           const ct = r.ciphertext || r.recordCiphertext
           if (!ct) continue
+          if (typeof ct === 'string' && ct.startsWith('record1')) return ct
           try {
             const dec = await decrypt(ct)
             const s = typeof dec === 'string' ? dec : JSON.stringify(dec)
@@ -65,9 +63,17 @@ async function pollForMembershipRecord(
           } catch { /* next */ }
         }
       }
-    } catch (err: any) { console.warn('[TransferMembership] attempt error:', err?.message) }
+    } catch (err: any) {
+      console.warn(`[Transfer] wallet poll ${i + 1} error:`, err?.message)
+    }
   }
   return null
+}
+
+interface TransferResult {
+  success: boolean
+  transactionId?: string
+  error?: string
 }
 
 export function useTransferMembership() {
@@ -81,29 +87,49 @@ export function useTransferMembership() {
   ): Promise<TransferResult> => {
     if (!connected || !address) return { success: false, error: 'Wallet not connected' }
     if (!executeTransaction || !requestRecords) return { success: false, error: 'Wallet does not support required features' }
-    if (!newOwnerAddress.startsWith('aleo1') || newOwnerAddress.length !== 63)
-      return { success: false, error: 'Invalid Aleo address format' }
-    if (newOwnerAddress === address) return { success: false, error: 'Cannot transfer to yourself' }
+    if (!newOwnerAddress || !newOwnerAddress.startsWith('aleo1'))
+      return { success: false, error: 'Invalid new owner address' }
 
     setIsTransferring(true)
     setTransactionStatus('Looking up your membership record…')
 
     try {
-      let membershipPlaintext: string | null = null
+      let membershipInput: string | null = null
 
+      // ── Layer 1: cache ───────────────────────────────────────────────────
       const cached = getCachedMembership(address, circleId)
-      if (cached) { console.log('[TransferMembership] Using cached record'); membershipPlaintext = cached }
-
-      if (!membershipPlaintext) {
-        membershipPlaintext = await pollForMembershipRecord(requestRecords, decrypt, circleId, (msg) => setTransactionStatus(msg))
+      if (cached) {
+        console.log('[Transfer] cache hit')
+        membershipInput = cached
       }
 
-      if (!membershipPlaintext) {
-        // Last resort: synthesize
-        let amount = 0
-        try { const r = await getCircleDetail(circleId); amount = r.circle.contributionAmount } catch { /* ignore */ }
-        console.warn('[TransferMembership] Using synthesized record')
-        membershipPlaintext = synthesizeMembershipRecord(address, circleId, amount)
+      // ── Layer 2: poll wallet ─────────────────────────────────────────────
+      if (!membershipInput && requestRecords) {
+        membershipInput = await pollWalletRecords(requestRecords, decrypt, circleId, setTransactionStatus)
+        if (membershipInput) setCachedMembership(address, circleId, membershipInput)
+      }
+
+      // ── Layer 3: fetch ciphertext from Aleo testnet ──────────────────────
+      if (!membershipInput) {
+        const txId = getJoinTxId(address, circleId)
+        if (txId) {
+          setTransactionStatus('Fetching record from Aleo testnet…')
+          console.log('[Transfer] querying testnet for txId:', txId)
+          const ciphertext = await fetchRecordCiphertextFromChain(txId, PROGRAM_ID)
+          if (ciphertext) {
+            console.log('[Transfer] got ciphertext from chain')
+            membershipInput = ciphertext
+            setCachedMembership(address, circleId, ciphertext)
+          }
+        }
+      }
+
+      if (!membershipInput) {
+        throw new Error(
+          'Membership record not found in your wallet.\n\n' +
+          '• Ensure you joined this circle and the transaction is confirmed.\n' +
+          '• Open Shield Wallet and tap "Sync" to force a record refresh, then try again.'
+        )
       }
 
       setTransactionStatus('Awaiting wallet approval…')
@@ -111,24 +137,24 @@ export function useTransferMembership() {
       const result = await executeTransaction({
         program: PROGRAM_ID,
         function: 'transfer_membership',
-        inputs: [membershipPlaintext, newOwnerAddress],
+        inputs: [
+          membershipInput,    // membership: CircleMembership
+          newOwnerAddress,    // new_owner: address (public)
+        ],
         fee: BASE_FEE,
         privateFee: false,
       })
 
       const txId = String((result as any)?.transactionId || result)
-      console.log('[TransferMembership] TX:', txId)
-
-      // After transfer the record now belongs to the new owner — clear our cache
-      clearCachedMembership(address, circleId)
-
+      console.log('[Transfer] TX:', txId)
       setTransactionStatus('Membership transferred!')
       await new Promise(r => setTimeout(r, 1500))
+
       setIsTransferring(false)
       setTransactionStatus(null)
       return { success: true, transactionId: txId }
     } catch (error) {
-      console.error('[TransferMembership] Error:', error)
+      console.error('Transfer error:', error)
       setIsTransferring(false)
       setTransactionStatus(null)
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
