@@ -1,10 +1,12 @@
 // ZkCircles - Privacy-preserving ROSCA on Aleo
-// Fund transfers happen off-chain; this contract provides
-// ZK membership proofs, contribution receipts, and payout receipts.
-// Member identity is hidden via hashed mapping keys (BHP256).
-// Program: zk_circles_v4.aleo
+// Contributions are made via credits.aleo/transfer_public_as_signer,
+// which debits the signer's public balance (lightweight — no timeout).
+// Member identity is hidden via BHP256-hashed mapping keys.
+// Program: zk_circles_v5.aleo
 
-program zk_circles_v4.aleo {
+import credits.aleo;
+
+program zk_circles_v5.aleo {
 
     // ==================== STRUCTS ====================
 
@@ -160,27 +162,37 @@ program zk_circles_v4.aleo {
         });
     }
 
-    // Record that a member has contributed for the current cycle.
-    // Actual fund transfer happens off-chain to the circle's pot address.
-    // Returns the membership record (so it can be reused) + a private receipt.
-    async transition record_contribution(
-        membership: CircleMembership,
-        public cycle: u8
+    // Contribute for the current cycle:
+    // 1. Atomically transfers funds via credits.aleo/transfer_public_as_signer
+    //    (debits signer's public account — lightweight, no timeout)
+    // 2. Records contribution state on-chain under a hashed key
+    // 3. Returns the membership record + a private ContributionReceipt
+    async transition contribute(
+        membership:        CircleMembership,
+        public pot_address: address,
+        public cycle:       u8
     ) -> (CircleMembership, ContributionReceipt, Future) {
+        // Debit signer's public credits balance and credit the pot address
+        let tf: Future = credits.aleo/transfer_public_as_signer(pot_address, membership.contribution_amount);
+
         let receipt: ContributionReceipt = ContributionReceipt {
             owner:     self.signer,
             circle_id: membership.circle_id,
             cycle:     cycle,
             amount:    membership.contribution_amount
         };
-        return (membership, receipt, finalize_record_contribution(membership.circle_id, cycle, self.signer));
+        return (membership, receipt, finalize_contribute(tf, membership.circle_id, cycle, self.signer));
     }
 
-    async function finalize_record_contribution(
+    async function finalize_contribute(
+        tf:          Future,
         circle_id:   field,
         cycle:       u8,
         contributor: address
     ) {
+        // Settle the credits transfer first
+        tf.await();
+
         let info: CircleInfo = circles.get(circle_id);
         assert_eq(info.status, 1u8);
         assert_eq(info.current_cycle, cycle);

@@ -2,8 +2,12 @@ import { useState, useCallback } from 'react'
 import { useWallet } from '@provablehq/aleo-wallet-adaptor-react'
 import { recordContributionBackend, getCircleDetail } from '../services/api'
 
-const PROGRAM_ID = import.meta.env.VITE_PROGRAM_ID || 'zk_circles_v4.aleo'
-const BASE_FEE = 1_000_000 // 1 ALEO in microcredits
+const PROGRAM_ID = import.meta.env.VITE_PROGRAM_ID || 'zk_circles_v5.aleo'
+const BASE_FEE = 1_000_000
+
+// The pot address collects all contributions for a circle.
+// Can be overridden per-circle; defaults to the env variable.
+const DEFAULT_POT_ADDRESS = import.meta.env.VITE_CIRCLE_POT_ADDRESS || 'aleo1yvukv56vxntqpc280d40dhuvz4prpwzvdvjcm9ggm8a8e3tffsgqc9ws3t' // 1 ALEO in microcredits
 
 interface ContributeResult {
   success: boolean
@@ -18,7 +22,8 @@ export function useContribute() {
 
   const contribute = useCallback(async (
     circleId: string,
-    amount: number
+    amount: number,
+    potAddress?: string
   ): Promise<ContributeResult> => {
     if (!connected || !address) {
       return { success: false, error: 'Wallet not connected' }
@@ -63,13 +68,15 @@ export function useContribute() {
 
       setTransactionStatus('Awaiting wallet approval...')
 
-      // record_contribution(membership: CircleMembership, public cycle: u8)
+      // contribute(membership, pot_address, cycle)
+      // credits.aleo/transfer_public_as_signer debits signer's public balance atomically
       const result = await executeTransaction({
         program: PROGRAM_ID,
-        function: 'record_contribution',
+        function: 'contribute',
         inputs: [
-          membershipPlaintext,   // membership: CircleMembership (private record)
-          `${cycle}u8`,          // cycle: u8 (public)
+          membershipPlaintext,                    // membership: CircleMembership
+          potAddress || DEFAULT_POT_ADDRESS,      // pot_address: address (public)
+          `${cycle}u8`,                           // cycle: u8 (public)
         ],
         fee: BASE_FEE,
         privateFee: false,
