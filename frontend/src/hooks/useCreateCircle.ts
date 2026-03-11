@@ -85,7 +85,7 @@ export function useCreateCircle() {
       // can find it without needing requestRecords to succeed first.
       if (requestRecords) {
         try {
-          const records: any[] = (await requestRecords(PROGRAM_ID)) || []
+          const records: any[] = (await (requestRecords as any)(PROGRAM_ID, true)) || []
           const bareId = circleId.replace(/field$/i, '')
           for (const r of records) {
             const ciId = r.data?.circle_id

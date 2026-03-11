@@ -4,6 +4,7 @@ import { recordPayoutBackend, getCircleDetail } from '../services/api'
 import {
   getCachedMembership,
   setCachedMembership,
+  clearCachedMembership,
   getJoinTxId,
   fetchRecordCiphertextFromChain,
 } from '../utils/membershipCache'
@@ -47,7 +48,7 @@ async function pollWalletRecords(
       await new Promise(r => setTimeout(r, delays[i]))
     }
     try {
-      const records: any[] = (await requestRecords(PROGRAM_ID)) || []
+      const records: any[] = (await (requestRecords as any)(PROGRAM_ID, true)) || []
       console.log(`[ClaimPayout] wallet poll ${i + 1}: ${records.length} records`)
 
       for (const r of records) { if (r.spent) continue; const f = matchRecord(r, circleId, bareId); if (f) return f }
@@ -151,6 +152,9 @@ export function useClaimPayout() {
       console.log('[ClaimPayout] TX:', txId)
       setTransactionStatus('Payout claimed!')
       await new Promise(r => setTimeout(r, 2000))
+
+      // Membership is consumed by claim_payout — evict the stale cache
+      clearCachedMembership(address, circleId)
 
       try {
         await recordPayoutBackend({ circleId, memberAddress: address, cycle: cycleNumber, amount: 0, transactionId: txId })

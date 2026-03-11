@@ -68,7 +68,7 @@ export function useVerifyMembership() {
     // Fall back to requestRecords
     if (!requestRecords) return false
     try {
-      const records: any[] = (await requestRecords(PROGRAM_ID)) || []
+      const records: any[] = (await (requestRecords as any)(PROGRAM_ID, true)) || []
       const bareId = circleId.replace(/field$/i, '')
       for (const r of records) {
         if (r.data?.circle_id) {

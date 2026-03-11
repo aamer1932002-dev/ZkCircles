@@ -66,7 +66,7 @@ export function useJoinCircle() {
       // Attempt to pre-cache the CircleMembership record
       if (requestRecords) {
         try {
-          const records: any[] = (await requestRecords(PROGRAM_ID)) || []
+          const records: any[] = (await (requestRecords as any)(PROGRAM_ID, true)) || []
           const bareId = circleId.replace(/field$/i, '')
           for (const r of records) {
             const ciId = r.data?.circle_id

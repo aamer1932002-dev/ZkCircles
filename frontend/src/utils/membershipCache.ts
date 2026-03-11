@@ -93,9 +93,8 @@ export async function fetchRecordCiphertextFromChain(
     const tx = await res.json()
 
     // Walk all transitions for this program and collect record outputs
-    const transitions: any[] = tx?.execution?.transitions ?? tx?.fee?.transition ? [tx.fee.transition] : []
-    // Also include the main execution transitions
-    if (tx?.execution?.transitions) transitions.push(...tx.execution.transitions)
+    const transitions: any[] = [...(tx?.execution?.transitions ?? [])]
+    if (tx?.fee?.transition) transitions.push(tx.fee.transition)
 
     for (const t of transitions) {
       if (!t?.program?.startsWith(programId.replace('.aleo', ''))) continue

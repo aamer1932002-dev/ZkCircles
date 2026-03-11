@@ -32,7 +32,7 @@ function matchRecord(r: any, circleId: string, bareId: string): string | null {
 }
 
 async function pollWalletRecords(
-  requestRecords: (program: string) => Promise<any>,
+  requestRecords: (program: string, includePlaintext?: boolean) => Promise<any>,
   decrypt: ((ct: string) => Promise<any>) | undefined,
   circleId: string,
   onStatus: (msg: string) => void
@@ -46,7 +46,7 @@ async function pollWalletRecords(
       await new Promise(r => setTimeout(r, delays[i]))
     }
     try {
-      const records: any[] = (await requestRecords(PROGRAM_ID)) || []
+      const records: any[] = (await requestRecords(PROGRAM_ID, true)) || []
       console.log(`[Transfer] wallet poll ${i + 1}: ${records.length} records`)
 
       for (const r of records) { if (r.spent) continue; const f = matchRecord(r, circleId, bareId); if (f) return f }
