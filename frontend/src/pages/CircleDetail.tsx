@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useWallet } from '@provablehq/aleo-wallet-adaptor-react'
 import { motion } from 'framer-motion'
 import { toast } from 'react-hot-toast'
@@ -18,7 +18,8 @@ import {
   ShieldCheck,
   X,
   UserPlus,
-  Trash2
+  Trash2,
+  BarChart2
 } from 'lucide-react'
 import { useCircleDetail } from '../hooks/useCircleDetail'
 import { useContribute } from '../hooks/useContribute'
@@ -27,6 +28,7 @@ import { useTransferMembership } from '../hooks/useTransferMembership'
 import { useVerifyMembership } from '../hooks/useVerifyMembership'
 import { useJoinCircle } from '../hooks/useJoinCircle'
 import { dissolveCircle } from '../services/api'
+import { NotificationToggle } from '../components/NotificationBanner'
 
 const statusLabels = {
   0: { label: 'Forming', color: 'badge-amber', description: 'Waiting for members to join' },
@@ -43,7 +45,7 @@ export default function CircleDetail() {
   const { contribute, isContributing, transactionStatus: contributeStatus } = useContribute()
   const { claimPayout, isClaiming, transactionStatus: claimStatus } = useClaimPayout()
   const { transferMembership, isTransferring, transactionStatus: transferStatus } = useTransferMembership()
-  const { checkMembershipLocally, isVerifying } = useVerifyMembership()
+  const { checkMembershipLocally, verifyMembership, isVerifying } = useVerifyMembership()
   const { joinCircle, isJoining, transactionStatus: joinStatus } = useJoinCircle()
   
   const [copied, setCopied] = useState(false)
@@ -117,15 +119,33 @@ export default function CircleDetail() {
     if (!circleId || !connected) return
     
     try {
-      const hasMembership = await checkMembershipLocally(circleId)
-      setMembershipVerified(hasMembership)
-      if (hasMembership) {
-        toast.success('Membership verified!')
-      } else {
+      // First do a fast local check
+      const localResult = await checkMembershipLocally(circleId)
+      setMembershipVerified(localResult)
+      if (!localResult) {
         toast.error('No membership record found for this circle')
+        return
       }
+      toast.success('Local membership check passed! Submit on-chain proof?', {
+        duration: 5000,
+      })
     } catch (error) {
       toast.error('Failed to verify membership.')
+    }
+  }
+
+  const handleVerifyOnChain = async () => {
+    if (!circleId || !connected) return
+    try {
+      const result = await verifyMembership(circleId)
+      if (result.success && result.isVerified) {
+        setMembershipVerified(true)
+        toast.success(`Membership verified on-chain! TX: ${result.transactionId?.slice(0, 12)}...`)
+      } else {
+        toast.error(result.error || 'Membership not verified')
+      }
+    } catch (error) {
+      toast.error('On-chain verification failed.')
     }
   }
 
@@ -224,6 +244,7 @@ export default function CircleDetail() {
                   {circle.name || `Circle ${circleId?.slice(0, 8)}...`}
                 </h1>
                 <span className={status.color}>{status.label}</span>
+                {circleId && <NotificationToggle circleId={circleId} circleName={circle.name || circleId} />}
               </div>
               <p className="text-midnight-600">{status.description}</p>
             </div>
@@ -240,6 +261,16 @@ export default function CircleDetail() {
                 )}
                 {copied ? 'Copied!' : 'Share Invite'}
               </button>
+            )}
+            {/* Analytics button */}
+            {circleId && (
+              <Link
+                to={`/analytics/${circleId}`}
+                className="btn-secondary inline-flex items-center gap-2 text-sm"
+              >
+                <BarChart2 className="w-4 h-4" />
+                Analytics
+              </Link>
             )}
           </div>
         </motion.div>
@@ -569,10 +600,22 @@ export default function CircleDetail() {
                     ) : (
                       <ShieldCheck className="w-4 h-4" />
                     )}
-                    {membershipVerified === true ? 'Membership Verified' : 
-                     membershipVerified === false ? 'Not a Member' : 
-                     'Verify Membership'}
+                    {membershipVerified === true ? 'Membership Verified (Local)' :
+                     membershipVerified === false ? 'Not a Member' :
+                     'Verify Membership (Local)'}
                   </button>
+
+                  {/* On-chain verify */}
+                  {membershipVerified === true && (
+                    <button
+                      onClick={handleVerifyOnChain}
+                      disabled={isVerifying}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-xl transition-colors text-sm font-medium"
+                    >
+                      {isVerifying ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+                      Generate On-Chain Proof
+                    </button>
+                  )}
 
                   {/* Transfer Membership */}
                   <button

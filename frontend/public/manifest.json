@@ -1,0 +1,32 @@
+{
+  "name": "ZkCircles - Community Savings",
+  "short_name": "ZkCircles",
+  "description": "Trustless, Zero-Knowledge Rotating Savings and Credit Associations on Aleo",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#FAFAF7",
+  "theme_color": "#F59E0B",
+  "categories": ["finance", "productivity"],
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "My Circles",
+      "url": "/my-circles",
+      "description": "View your active savings circles"
+    },
+    {
+      "name": "Create Circle",
+      "url": "/create",
+      "description": "Start a new savings circle"
+    }
+  ]
+}

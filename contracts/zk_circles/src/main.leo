@@ -1,10 +1,10 @@
 // ZkCircles - Trustless Zero-Knowledge Rotating Savings and Credit Associations
 // Built on Aleo for privacy-preserving community finance
-// Program: zk_circles_v2.aleo
+// Program: zk_circles_v3.aleo
 
 import credits.aleo;
 
-program zk_circles_v2.aleo {
+program zk_circles_v3.aleo {
 
     // ==================== STRUCTS ====================
 
@@ -359,5 +359,38 @@ program zk_circles_v2.aleo {
             creator: config.creator,
             status: 3u8
         });
+    }
+
+    // Transfer membership to a new owner (private record transfer)
+    transition transfer_membership(
+        membership: CircleMembership,
+        public new_owner: address
+    ) -> CircleMembership {
+        assert_eq(self.signer, membership.owner);
+        return CircleMembership {
+            owner: new_owner,
+            circle_id: membership.circle_id,
+            contribution_amount: membership.contribution_amount,
+            salt: membership.salt
+        };
+    }
+
+    // Verify membership exists on-chain — asserts the caller is a registered member
+    async transition verify_membership(
+        public circle_id: field
+    ) -> Future {
+        return finalize_verify_membership(circle_id, self.signer);
+    }
+
+    async function finalize_verify_membership(
+        circle_id: field,
+        member_addr: address
+    ) {
+        let member_key: field = BHP256::hash_to_field(MemberKeyInput {
+            circle_id: circle_id,
+            member_addr: member_addr
+        });
+        let is_member: bool = members.contains(member_key);
+        assert(is_member);
     }
 }

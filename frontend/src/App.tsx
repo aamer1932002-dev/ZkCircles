@@ -13,6 +13,7 @@ import CircleDetail from './pages/CircleDetail'
 import Explorer from './pages/Explorer'
 import HowItWorks from './pages/HowItWorks'
 import Privacy from './pages/Privacy'
+import Analytics from './pages/Analytics'
 
 function App() {
   return (
@@ -50,6 +51,8 @@ function App() {
           <Route path="join/:circleId" element={<JoinCircle />} />
           <Route path="my-circles" element={<MyCircles />} />
           <Route path="circle/:circleId" element={<CircleDetail />} />
+          <Route path="analytics/:circleId" element={<Analytics />} />
+          <Route path="analytics" element={<Analytics />} />
           <Route path="explorer" element={<Explorer />} />
           <Route path="how-it-works" element={<HowItWorks />} />
           <Route path="privacy" element={<Privacy />} />

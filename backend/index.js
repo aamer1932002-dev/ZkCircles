@@ -679,6 +679,132 @@ app.post('/api/contributions', async (req, res) => {
   }
 })
 
+// ==================== ANALYTICS ENDPOINTS ====================
+
+/**
+ * GET /api/circles/:circleId/analytics
+ * Returns aggregated analytics for a circle
+ */
+app.get('/api/circles/:circleId/analytics', async (req, res) => {
+  try {
+    const { circleId } = req.params
+
+    if (USE_MOCK) {
+      const circle = mockData.circles.find(c => c.id === circleId)
+      if (!circle) return res.status(404).json({ error: 'Circle not found' })
+      const totalCycles = circle.total_cycles || 6
+      const cycleHistory = Array.from({ length: totalCycles }, (_, i) => ({
+        cycle: i + 1,
+        expected: circle.contribution_amount || 10,
+        actual: i < (circle.current_cycle || 1) ? (circle.contribution_amount || 10) : 0,
+        completionRate: i < (circle.current_cycle || 1) ? 100 : 0,
+      }))
+      const members = mockData.members.filter(m => m.circle_id === circleId)
+      const memberContributions = members.map(m => ({
+        address: m.member_address,
+        contributed: (circle.contribution_amount || 10) * (circle.current_cycle || 1),
+        expected: (circle.contribution_amount || 10) * totalCycles,
+        missedCycles: 0,
+      }))
+      const payoutSchedule = members.map((m, i) => ({
+        cycle: i + 1,
+        recipient: m.member_address,
+        amount: (circle.contribution_amount || 10) * members.length,
+        status: i + 1 < (circle.current_cycle || 1) ? 'completed' : i + 1 === (circle.current_cycle || 1) ? 'current' : 'upcoming',
+        expectedDate: null,
+      }))
+      return res.json({
+        circleId,
+        circleName: circle.name,
+        totalContributed: (circle.contribution_amount || 10) * members.length * (circle.current_cycle || 1),
+        totalPaidOut: (circle.contribution_amount || 10) * members.length * Math.max(0, (circle.current_cycle || 1) - 1),
+        activeMembers: members.length,
+        completionPercentage: Math.round(((circle.current_cycle || 1) / totalCycles) * 100),
+        healthScore: 85,
+        cycleHistory,
+        memberContributions,
+        payoutSchedule,
+      })
+    }
+
+    // Real Supabase mode
+    const { data: circle, error: circleErr } = await supabase
+      .from('circles')
+      .select('*')
+      .eq('circle_id', circleId)
+      .single()
+    if (circleErr || !circle) return res.status(404).json({ error: 'Circle not found' })
+
+    const { data: members } = await supabase.from('circle_members').select('*').eq('circle_id', circleId)
+    const { data: contributions } = await supabase.from('contributions').select('*').eq('circle_id', circleId)
+    const { data: payouts } = await supabase.from('payouts').select('*').eq('circle_id', circleId)
+
+    const memberList = members || []
+    const contribs = contributions || []
+    const payoutList = payouts || []
+    const totalCycles = circle.total_cycles || 6
+    const contribAmount = Number(circle.contribution_amount) || 10
+
+    const cycleHistory = Array.from({ length: totalCycles }, (_, i) => {
+      const cycleNum = i + 1
+      const cycleContribs = contribs.filter(c => c.cycle === cycleNum)
+      const actual = cycleContribs.reduce((sum, c) => sum + Number(c.amount), 0)
+      const expected = contribAmount * memberList.length
+      return {
+        cycle: cycleNum,
+        expected,
+        actual,
+        completionRate: expected > 0 ? Math.round((actual / expected) * 100) : 0,
+      }
+    })
+
+    const memberContributions = memberList.map(m => {
+      const mc = contribs.filter(c => c.member_address === m.member_address)
+      const contributed = mc.reduce((sum, c) => sum + Number(c.amount), 0)
+      const expected = contribAmount * totalCycles
+      const missedCycles = totalCycles - mc.length
+      return { address: m.member_address, contributed, expected, missedCycles: Math.max(0, missedCycles) }
+    })
+
+    const payoutSchedule = memberList.map((m, i) => {
+      const payout = payoutList.find(p => p.member_address === m.member_address)
+      const cycle = m.payout_cycle || i + 1
+      return {
+        cycle,
+        recipient: m.member_address,
+        amount: contribAmount * memberList.length,
+        status: payout ? 'completed' : cycle === circle.current_cycle ? 'current' : 'upcoming',
+        expectedDate: m.expected_payout_date || null,
+      }
+    })
+
+    const totalContributed = contribs.reduce((sum, c) => sum + Number(c.amount), 0)
+    const totalPaidOut = payoutList.reduce((sum, p) => sum + Number(p.amount), 0)
+    const completionPercentage = Math.round(((circle.current_cycle || 1) / totalCycles) * 100)
+    const healthScore = Math.min(100, Math.round(
+      (memberList.length / (circle.max_members || memberList.length || 1)) * 40 +
+      completionPercentage * 0.4 +
+      (totalContributed > 0 ? 20 : 0)
+    ))
+
+    return res.json({
+      circleId,
+      circleName: circle.name,
+      totalContributed,
+      totalPaidOut,
+      activeMembers: memberList.length,
+      completionPercentage,
+      healthScore,
+      cycleHistory,
+      memberContributions,
+      payoutSchedule,
+    })
+  } catch (err) {
+    console.error('Analytics error:', err)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 // ==================== PAYOUTS ENDPOINTS ====================
 
 /**
