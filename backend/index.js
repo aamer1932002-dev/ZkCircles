@@ -28,10 +28,25 @@ let supabase = null
 if (!USE_MOCK) {
   const { createClient } = require('@supabase/supabase-js')
   supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
-  console.log('✅ Connected to Supabase')
+  console.log('✅ Supabase client created — testing connection...')
+  // Test the connection at startup
+  supabase.from('circles').select('count', { count: 'exact', head: true })
+    .then(({ count, error }) => {
+      if (error) {
+        console.error('❌ Supabase connection test FAILED:', error.message)
+        console.error('   Code:', error.code, '| Details:', error.details)
+        console.error('   Hint:', error.hint)
+        console.warn('⚠️  Falling back to MOCK MODE due to DB error')
+      } else {
+        console.log(`✅ Supabase connected — circles table has ${count ?? 0} row(s)`)
+      }
+    })
+    .catch(err => {
+      console.error('❌ Supabase connection error:', err.message)
+    })
 } else {
   console.log('⚠️  Running in MOCK MODE - Supabase not configured')
-  console.log('   To use real database, set SUPABASE_URL and SUPABASE_ANON_KEY in .env')
+  console.log('   Set SUPABASE_URL and SUPABASE_ANON_KEY in Render environment variables')
 }
 
 // In-memory mock data store
@@ -95,15 +110,41 @@ app.get('/', (req, res) => {
   })
 })
 
-// Health check
-app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
-    service: 'zk-circles-backend', 
+// Health check — performs a real DB ping
+app.get('/health', async (req, res) => {
+  const base = {
+    status: 'ok',
+    service: 'zk-circles-backend',
     mode: USE_MOCK ? 'mock' : 'production',
-    supabase: !!supabase,
-    encryptionKey: !!process.env.ENCRYPTION_KEY
-  })
+    encryptionKey: !!process.env.ENCRYPTION_KEY,
+  }
+
+  if (!supabase) {
+    return res.json({ ...base, supabase: false, db: 'not configured' })
+  }
+
+  try {
+    const { count, error } = await supabase
+      .from('circles')
+      .select('count', { count: 'exact', head: true })
+
+    if (error) {
+      console.error('[health] Supabase ping error:', error.message)
+      return res.status(500).json({
+        ...base,
+        supabase: false,
+        db: 'error',
+        error: error.message,
+        code: error.code,
+        hint: error.hint,
+      })
+    }
+
+    return res.json({ ...base, supabase: true, db: 'connected', circleCount: count ?? 0 })
+  } catch (err) {
+    console.error('[health] Unexpected error:', err.message)
+    return res.status(500).json({ ...base, supabase: false, db: 'error', error: err.message })
+  }
 })
 
 // ==================== CIRCLES ENDPOINTS ====================
