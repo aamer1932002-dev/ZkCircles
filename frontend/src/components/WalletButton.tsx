@@ -37,6 +37,8 @@ export default function WalletButton() {
   // Auto-open reconnect panel when a stale-permissions error is detected in any hook
   useEffect(() => {
     const handler = () => {
+      // Clear stored wallet name so next connect() forces a fresh permission prompt
+      localStorage.removeItem('walletName')
       setShowDropdown(false)
       setStalePermissions(true)
       setShowWalletSelect(true)

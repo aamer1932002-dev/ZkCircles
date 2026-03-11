@@ -10,7 +10,6 @@ import { DecryptPermission } from '@provablehq/aleo-wallet-adaptor-core'
 import { Network } from '@provablehq/aleo-types'
 import { LeoWalletAdapter } from '@provablehq/aleo-wallet-adaptor-leo'
 import { ShieldWalletAdapter } from '@provablehq/aleo-wallet-adaptor-shield'
-import { PROGRAM_ID } from './config'
 
 // Configure wallets - Shield first for better UX, then Leo
 const wallets = [
@@ -23,13 +22,13 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <AleoWalletProvider
       wallets={wallets}
       decryptPermission={DecryptPermission.AutoDecrypt}
-      programs={[PROGRAM_ID, 'credits.aleo']}
       network={Network.TESTNET}
       autoConnect={false}
       onError={(error) => {
         const msg = error.message ?? ''
-        // Stale permissions: auto-disconnect so next connect re-registers programs
+        // Stale permissions: clear stored wallet so next connect forces a fresh permission prompt
         if (msg.includes('not in the allowed programs') || msg.includes('request it when connect')) {
+          localStorage.removeItem('walletName')
           window.dispatchEvent(new CustomEvent('wallet-stale-permissions'))
           return
         }
