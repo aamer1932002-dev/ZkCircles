@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react'
 import { useWallet } from '@provablehq/aleo-wallet-adaptor-react'
 import { generateSalt, hashToField } from '../utils/aleo-utils'
 import { saveCircleToBackend } from '../services/api'
+import { setCachedMembership } from '../utils/membershipCache'
 
 const PROGRAM_ID = import.meta.env.VITE_PROGRAM_ID || 'zk_circles_v5.aleo'
 const BASE_FEE = 1_000_000 // 1 ALEO in microcredits
@@ -21,7 +22,7 @@ interface CreateCircleResult {
 }
 
 export function useCreateCircle() {
-  const { connected, address, executeTransaction } = useWallet()
+  const { connected, address, executeTransaction, requestRecords } = useWallet()
   const [isCreating, setIsCreating] = useState(false)
   const [transactionStatus, setTransactionStatus] = useState<string | null>(null)
 
@@ -78,6 +79,34 @@ export function useCreateCircle() {
       // Wait a moment for the wallet to process
       await new Promise(resolve => setTimeout(resolve, 2000))
       setTransactionStatus('Circle created successfully!')
+
+      // Attempt to cache the CircleMembership record so contribute/claim
+      // can find it without needing requestRecords to succeed first.
+      if (requestRecords) {
+        try {
+          const records: any[] = (await requestRecords(PROGRAM_ID)) || []
+          const bareId = circleId.replace(/field$/i, '')
+          for (const r of records) {
+            const ciId = r.data?.circle_id
+              ? String(r.data.circle_id).replace('.private', '').replace('.public', '')
+              : ''
+            const pt: string | undefined = r.recordPlaintext || r.plaintext || r.record
+            if (
+              ciId === circleId || ciId === bareId ||
+              (pt && (pt.includes(circleId) || pt.includes(bareId)))
+            ) {
+              const plaintext = pt || (r.data ? JSON.stringify(r.data) : '')
+              if (plaintext) {
+                setCachedMembership(address, circleId, plaintext)
+                console.log('[CreateCircle] Membership record cached')
+              }
+              break
+            }
+          }
+        } catch (e) {
+          console.warn('[CreateCircle] Could not pre-cache membership record:', e)
+        }
+      }
 
       // Save to backend for indexing
       try {
