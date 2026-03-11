@@ -162,25 +162,28 @@ program zk_circles_v3.aleo {
 
     async transition join_circle(
         public circle_id: field,
+        public contribution_amount: u64,
         public salt: field
     ) -> (CircleMembership, Future) {
         let membership: CircleMembership = CircleMembership {
             owner: self.signer,
             circle_id: circle_id,
-            contribution_amount: 0u64,
+            contribution_amount: contribution_amount,
             salt: salt
         };
 
-        let f: Future = finalize_join_circle(circle_id, self.signer);
+        let f: Future = finalize_join_circle(circle_id, contribution_amount, self.signer);
         return (membership, f);
     }
 
     async function finalize_join_circle(
         circle_id: field,
+        contribution_amount: u64,
         joiner: address
     ) {
         let config: CircleConfig = circles.get(circle_id);
         assert_eq(config.status, 0u8);
+        assert_eq(contribution_amount, config.contribution_amount);
 
         let state: CircleState = circle_states.get(circle_id);
         assert(state.members_joined < config.max_members);

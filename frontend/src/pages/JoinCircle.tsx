@@ -40,7 +40,9 @@ export default function JoinCircle() {
     }
 
     try {
-      const result = await joinCircle(circleId)
+      const found = circles.find(c => c.id === circleId)
+      const contributionAmount = found?.contributionAmount ?? 0
+      const result = await joinCircle(circleId, contributionAmount)
       if (result.success) {
         toast.success('Successfully joined the circle!')
         navigate(`/circle/${circleId}`)

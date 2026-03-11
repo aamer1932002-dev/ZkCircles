@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react'
 import { useWallet } from '@provablehq/aleo-wallet-adaptor-react'
 import { updateCircleMembershipBackend } from '../services/api'
 
-const PROGRAM_ID = import.meta.env.VITE_PROGRAM_ID || 'zk_circles_v3.aleo'
+const PROGRAM_ID = import.meta.env.VITE_PROGRAM_ID || 'zk_circles_v2.aleo'
 const BASE_FEE = 1_000_000 // 1 ALEO in microcredits
 
 interface JoinCircleResult {
@@ -16,7 +16,7 @@ export function useJoinCircle() {
   const [isJoining, setIsJoining] = useState(false)
   const [transactionStatus, setTransactionStatus] = useState<string | null>(null)
 
-  const joinCircle = useCallback(async (circleId: string): Promise<JoinCircleResult> => {
+  const joinCircle = useCallback(async (circleId: string, contributionAmount: number): Promise<JoinCircleResult> => {
     if (!connected || !address) {
       return { success: false, error: 'Wallet not connected' }
     }
@@ -29,9 +29,11 @@ export function useJoinCircle() {
     setTransactionStatus('Preparing to join...')
 
     try {
-      // Prepare the transaction - playground_simple.leo join_circle takes only circle_id
+      const salt = `${BigInt(Math.floor(Math.random() * Number.MAX_SAFE_INTEGER))}field`
       const inputs = [
-        circleId,  // circle_id: field
+        circleId,                    // circle_id: field
+        `${contributionAmount}u64`,  // contribution_amount: u64
+        salt,                        // salt: field
       ]
 
       setTransactionStatus('Awaiting wallet approval...')

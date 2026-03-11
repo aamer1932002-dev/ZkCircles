@@ -153,7 +153,7 @@ export default function CircleDetail() {
     if (!circleId || !connected) return
     
     try {
-      const result = await joinCircle(circleId)
+      const result = await joinCircle(circleId, circle?.contributionAmount ?? 0)
       if (result.success) {
         toast.success('Successfully joined the circle!')
         fetchCircleDetail(circleId)
