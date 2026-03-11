@@ -3,6 +3,7 @@ import { useWallet } from '@provablehq/aleo-wallet-adaptor-react'
 import {
   getCachedMembership,
   setCachedMembership,
+  clearCachedMembership,
   getJoinTxId,
   fetchRecordCiphertextFromChain,
 } from '../utils/membershipCache'
@@ -161,6 +162,9 @@ export function useTransferMembership() {
       console.log('[Transfer] TX:', txId)
       setTransactionStatus('Membership transferred!')
       await new Promise(r => setTimeout(r, 1500))
+
+      // Sender's record is consumed — clear their cache
+      clearCachedMembership(address, circleId)
 
       setIsTransferring(false)
       setTransactionStatus(null)

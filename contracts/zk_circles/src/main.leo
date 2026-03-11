@@ -261,16 +261,36 @@ program zk_circles_v6.aleo {
         });
     }
 
-    // Pure record transformation — no on-chain state changes.
-    transition transfer_membership(
+    // Pure record transformation plus mapping update.
+    // Signer must be the current record owner (enforced by Aleo record ownership).
+    // The mapping entry is re-keyed from old_owner → new_owner so the new holder
+    // can contribute, claim and verify without restriction.
+    async transition transfer_membership(
         membership: CircleMembership,
         public new_owner: address
-    ) -> CircleMembership {
-        return CircleMembership {
+    ) -> (CircleMembership, Future) {
+        let new_membership: CircleMembership = CircleMembership {
             owner: new_owner,
             circle_id: membership.circle_id,
             contribution_amount: membership.contribution_amount
         };
+        return (new_membership, finalize_transfer_membership(membership.circle_id, self.signer, new_owner));
+    }
+
+    async function finalize_transfer_membership(
+        circle_id: field,
+        old_owner: address,
+        new_owner: address
+    ) {
+        // Retrieve and remove the old key — asserts old_owner is a member
+        let old_key: field = BHP256::hash_to_field(MemberKey { circle_id: circle_id, member_addr: old_owner });
+        let join_order: u8 = members.get(old_key);
+        members.remove(old_key);
+
+        // New owner must not already be a member of this circle
+        let new_key: field = BHP256::hash_to_field(MemberKey { circle_id: circle_id, member_addr: new_owner });
+        assert(!members.contains(new_key));
+        members.set(new_key, join_order);
     }
 
     async transition verify_membership(public circle_id: field) -> Future {
