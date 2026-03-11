@@ -7,6 +7,34 @@ ZkCircles brings the centuries-old tradition of community savings circles (ROSCA
 ![License](https://img.shields.io/badge/license-MIT-amber)
 ![Aleo](https://img.shields.io/badge/Aleo-Testnet-forest)
 ![Leo](https://img.shields.io/badge/Leo-v0.1.0-terra)
+![Status](https://img.shields.io/badge/Status-Wave%203%20Complete-brightgreen)
+
+---
+
+## 🎯 Wave 3 Progress
+
+### ✅ Completed This Wave
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| 🔌 Shield Wallet Integration | ✅ Done | Full support using `@provablehq/aleo-wallet-adaptor-shield` |
+| 🦁 Leo Wallet Integration | ✅ Done | Full support using `@provablehq/aleo-wallet-adaptor-leo` |
+| 💰 credits.aleo Integration | ✅ Done | Rule 4 compliant - real credit transfers via `transfer_private` |
+| 📜 Smart Contract Deployed | ✅ Done | `zk_circles_v1.aleo` live on testnet |
+| 🎨 Frontend UI | ✅ Done | Modern React + Tailwind with warm community design |
+| 🗄️ Backend API | ✅ Done | Express + Supabase for off-chain indexing |
+| 🔐 Encrypted Storage | ✅ Done | AES-256-GCM for sensitive metadata |
+
+### 🚧 Next Wave (Wave 4)
+
+| Feature | Priority | Description |
+|---------|----------|-------------|
+| 🧪 Full E2E Testing | High | Complete test coverage for all flows |
+| 📊 Circle Dashboard | Medium | Analytics and contribution history |
+| 🔔 Notifications | Medium | Email/Push for payout turns |
+| 🌐 Mainnet Deployment | High | Production deployment with audited contracts |
+| 📱 Mobile Responsive | Medium | Optimized mobile experience |
+| 🔄 Auto-contribution | Low | Scheduled automatic contributions |
 
 ---
 
@@ -27,10 +55,14 @@ Members contribute fixed amounts regularly, and each cycle one member receives t
 
 - **🔒 Zero-Knowledge Privacy** - Contribution amounts and membership details remain private
 - **📜 Trustless Execution** - Smart contracts enforce rules without intermediaries
+- **💰 Real Credit Transfers** - Uses `credits.aleo/transfer_private` (Buildathon Rule 4 ✅)
+- **🛡️ Shield Wallet Support** - Official `@provablehq/aleo-wallet-adaptor-shield`
+- **🦁 Leo Wallet Support** - Official `@provablehq/aleo-wallet-adaptor-leo`
 - **🌐 Global Access** - Anyone with an Aleo wallet can participate
-- **💰 Flexible Circles** - 2-12 members, customizable contributions and durations
+- **💎 Flexible Circles** - 2-12 members, customizable contributions and durations
 - **📱 Modern UI** - Warm, community-focused design celebrating ROSCA heritage
 - **🔗 On-Chain Verification** - All state changes verified by Aleo network
+- **🔐 Encrypted Storage** - Off-chain metadata protected with AES-256-GCM
 
 ---
 
@@ -42,7 +74,8 @@ Members contribute fixed amounts regularly, and each cycle one member receives t
 │              Vite + TypeScript + Tailwind CSS               │
 ├─────────────────────────────────────────────────────────────┤
 │                  Wallet Adapter Layer                       │
-│            Leo Wallet / Puzzle Wallet Integration           │
+│     @provablehq/aleo-wallet-adaptor-react (Official)        │
+│          🛡️ Shield Wallet  |  🦁 Leo Wallet                 │
 ├─────────────────────────────────────────────────────────────┤
 │                   Backend (Express)                         │
 │          Off-chain indexing + Encrypted storage             │
@@ -51,7 +84,7 @@ Members contribute fixed amounts regularly, and each cycle one member receives t
 │               Database with RLS policies                    │
 ├─────────────────────────────────────────────────────────────┤
 │                    Aleo Blockchain                          │
-│            Leo Smart Contracts (ZK execution)               │
+│       zk_circles_v1.aleo + credits.aleo (Rule 4)            │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -64,22 +97,35 @@ LeoCircles/
 ├── contracts/
 │   └── zk_circles/
 │       ├── src/
-│       │   └── main.leo         # Core ROSCA smart contract
-│       └── program.json         # Leo program configuration
+│       │   └── main.leo              # Core ROSCA smart contract (deployed)
+│       └── program.json              # Leo program configuration
 ├── frontend/
 │   ├── src/
-│   │   ├── components/          # Reusable UI components
-│   │   ├── pages/               # Application pages
-│   │   ├── hooks/               # Custom React hooks for Aleo
-│   │   ├── services/            # API client
-│   │   └── utils/               # Helper functions
-│   ├── tailwind.config.js       # Custom theme configuration
+│   │   ├── components/
+│   │   │   ├── Header.tsx            # Navigation with wallet button
+│   │   │   └── WalletButton.tsx      # Custom wallet selector (Shield/Leo)
+│   │   ├── pages/
+│   │   │   ├── Home.tsx              # Landing page
+│   │   │   ├── CreateCircle.tsx      # Create new circle
+│   │   │   ├── JoinCircle.tsx        # Join existing circle
+│   │   │   ├── CircleDetail.tsx      # Circle management
+│   │   │   └── MyCircles.tsx         # User's circles dashboard
+│   │   ├── hooks/
+│   │   │   ├── useCreateCircle.ts    # Circle creation + Aleo tx
+│   │   │   ├── useJoinCircle.ts      # Join circle + Aleo tx
+│   │   │   ├── useContribute.ts      # Contribution + credits.aleo transfer
+│   │   │   ├── useClaimPayout.ts     # Payout claiming
+│   │   │   ├── useTransferMembership.ts  # Transfer membership
+│   │   │   └── useVerifyMembership.ts    # On-chain verification
+│   │   ├── services/api.ts           # Backend API client
+│   │   └── main.tsx                  # App entry with wallet providers
+│   ├── tailwind.config.js            # Custom theme configuration
 │   └── package.json
 ├── backend/
-│   ├── index.js                 # Express API server
-│   ├── encryption.js            # AES-256-GCM encryption
-│   ├── schema.sql               # Supabase database schema
-│   └── .env.example
+│   ├── index.js                      # Express API server
+│   ├── encryption.js                 # AES-256-GCM encryption
+│   ├── schema.sql                    # Supabase database schema
+│   └── .env                          # Environment configuration
 └── README.md
 ```
 
@@ -91,7 +137,9 @@ LeoCircles/
 
 - **Node.js** >= 18.x
 - **Leo** (Aleo's programming language) - [Install Leo](https://developer.aleo.org/leo/installation)
-- **Aleo Wallet** - [Leo Wallet](https://www.leo.app/) or [Puzzle Wallet](https://puzzle.online/)
+- **Aleo Wallet** - One of:
+  - 🛡️ [Shield Wallet](https://www.shieldwallet.xyz/) (Recommended)
+  - 🦁 [Leo Wallet](https://www.leo.app/)
 - **Supabase Account** - [Create free account](https://supabase.com)
 
 ### 1. Clone the Repository
@@ -207,29 +255,34 @@ Visit `http://localhost:5173` in your browser.
 
 ---
 
-## �🔧 Smart Contract Functions
+## 🔧 Smart Contract Functions
+
+### Deployed Program: `zk_circles_v1.aleo`
 
 ### Transitions
 
-| Function | Description |
-|----------|-------------|
-| `create_circle` | Create a new savings circle with parameters |
-| `join_circle` | Join an existing circle (requires invitation) |
-| `contribute` | Make a contribution for the current cycle |
-| `claim_payout` | Claim your payout when it's your turn |
+| Function | Description | Credits Integration |
+|----------|-------------|---------------------|
+| `create_circle` | Create a new savings circle with parameters | - |
+| `join_circle` | Join an existing circle | - |
+| `contribute` | Make a contribution for the current cycle | ✅ `credits.aleo/transfer_private` |
+| `claim_payout` | Claim your payout when it's your turn | ✅ Receives from pot |
+| `transfer_membership` | Transfer your position to another address | - |
+| `verify_membership` | Verify membership on-chain | - |
 
 ### Records (Private)
 
-- `CircleMembership` - Proves membership in a circle
-- `ContributionReceipt` - Proof of contribution
-- `PayoutReceipt` - Proof of received payout
+- `CircleMembership` - Proves membership in a circle (owner, circle_id, join_order, salt)
+- `ContributionReceipt` - Proof of contribution (circle_id, cycle, amount, timestamp)
+- `PayoutReceipt` - Proof of received payout (circle_id, cycle, amount)
 
 ### Mappings (Public)
 
-- `circles` - Circle metadata
-- `circle_states` - Current state of each circle
-- `members` - Member count per circle
-- `contributions` - Contribution tracking
+- `circles` - Circle configurations (contribution_amount, max_members, etc.)
+- `circle_states` - Current state of each circle (current_cycle, members_joined)
+- `members` - Member data per circle
+- `contributions` - Contribution tracking per cycle
+- `cycle_payouts` - Payout recipient tracking
 
 ---
 
@@ -255,6 +308,38 @@ ZkCircles leverages Aleo's zero-knowledge proofs for privacy:
 2. **Hashed Identifiers** - Circle IDs use BHP256 hashing with private salts
 3. **Off-chain Encryption** - Sensitive metadata encrypted with AES-256-GCM
 4. **Selective Disclosure** - Users control what information to reveal
+
+---
+
+## 🔌 Wallet Integration
+
+ZkCircles uses the official **@provablehq** wallet adapter packages:
+
+```typescript
+// Wallet Provider Setup (main.tsx)
+import { AleoWalletProvider } from '@provablehq/aleo-wallet-adaptor-react'
+import { ShieldWalletAdapter } from '@provablehq/aleo-wallet-adaptor-shield'
+import { LeoWalletAdapter } from '@provablehq/aleo-wallet-adaptor-leo'
+
+const wallets = [
+  new ShieldWalletAdapter(),
+  new LeoWalletAdapter({ appName: 'ZkCircles' }),
+]
+```
+
+### Transaction Pattern
+
+All transactions use `executeTransaction` with `privateFee: false` for Shield Wallet compatibility:
+
+```typescript
+await executeTransaction({
+  program: 'zk_circles_v1.aleo',
+  function: 'contribute',
+  inputs: [membershipRecord, circleId, cycleNumber],
+  fee: 300_000, // 0.3 ALEO
+  privateFee: false, // Critical for Shield Wallet
+})
+```
 
 ---
 
@@ -309,8 +394,11 @@ Contributions welcome! Please read our contributing guidelines before submitting
 
 - [Aleo Documentation](https://developer.aleo.org/)
 - [Leo Language Guide](https://developer.aleo.org/leo/)
-- [Aleo Wallet Adapter](https://github.com/ProvablHQ/aleo-wallet-adaptor-react)
+- [Provable Wallet Adapter](https://github.com/ProvablHQ/aleo-wallet-adaptor-react) - Official SDK
+- [Shield Wallet](https://www.shieldwallet.xyz/)
+- [Leo Wallet](https://www.leo.app/)
 - [Supabase Documentation](https://supabase.com/docs)
+- [Aleo Explorer](https://explorer.aleo.org/) - View transactions
 
 ---
 
@@ -322,4 +410,6 @@ This project is for educational purposes. Smart contracts have not been audited.
 
 <p align="center">
   <strong>Built with 🧡 for communities worldwide</strong>
+  <br>
+  <em>Aleo Buildathon 2026 - Wave 3 ✅</em>
 </p>

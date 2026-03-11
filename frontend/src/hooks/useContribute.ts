@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react'
 import { useWallet } from '@provablehq/aleo-wallet-adaptor-react'
 import { recordContributionBackend, getCircleDetail } from '../services/api'
 
-const PROGRAM_ID = import.meta.env.VITE_PROGRAM_ID || 'zk_circles_v1.aleo'
+const PROGRAM_ID = import.meta.env.VITE_PROGRAM_ID || 'zk_circles_v2.aleo'
 const CREDITS_PROGRAM = 'credits.aleo'
 const BASE_FEE = 1_000_000 // 1 ALEO in microcredits — Shield Wallet requires non-zero fee
 
@@ -156,43 +156,31 @@ export function useContribute() {
         )
       }
 
-      setTransactionStatus('Step 1/2: Transferring credits to circle pot...')
+      setTransactionStatus('Fetching your membership record...')
 
-      // Step 2: Transfer credits using credits.aleo — Rule 4 compliance
-      const creditsTxResult = await executeTransaction({
-        program: CREDITS_PROGRAM,
-        function: 'transfer_private',
-        inputs: [
-          recordPlaintext,
-          CIRCLE_POT_ADDRESS,
-          `${amount}u64`,
-        ],
-        fee: BASE_FEE,
-        privateFee: false, // CRITICAL: Shield Wallet requires privateFee: false
-      })
-
-      const creditsTxId = String(creditsTxResult?.transactionId || creditsTxResult)
-      console.log('[Contribute] Credits transfer TX:', creditsTxId)
-      
-      setTransactionStatus('Credits transferred! Step 2/2: Recording contribution...')
-
-      // Wait for credits transfer to be processed
-      await new Promise(resolve => setTimeout(resolve, 3000))
-
-      // Step 3: Get membership record
+      // Step 2: Get membership record for this circle
       let membershipPlaintext: string | null = null
       try {
         const programRecords = await requestRecords(PROGRAM_ID) || []
         console.log('[Contribute] Program records:', programRecords)
-        
+
         for (const r of programRecords as any[]) {
           if (r.spent) continue
-          
-          // Check if this is a CircleMembership record for this circle
-          const pt = r.recordPlaintext || r.plaintext || buildCreditsPlaintext(r)
+          const pt = r.recordPlaintext || r.plaintext
           if (pt && pt.includes(circleId)) {
             membershipPlaintext = pt
             break
+          }
+          // Try decrypt
+          const ct = r.ciphertext || r.recordCiphertext
+          if (ct && decrypt) {
+            try {
+              const decPt = await decrypt(ct)
+              if (decPt && typeof decPt === 'string' && decPt.includes(circleId)) {
+                membershipPlaintext = decPt
+                break
+              }
+            } catch { /* try next */ }
           }
         }
       } catch (e) {
@@ -200,47 +188,44 @@ export function useContribute() {
       }
 
       if (!membershipPlaintext) {
-        // If we can't find membership record, still record the contribution
-        // The credits were transferred successfully
-        console.warn('[Contribute] Membership record not found, recording contribution anyway')
+        throw new Error('No membership record found for this circle. Make sure you have joined this circle.')
       }
 
-      // Record the contribution in our program (if we have membership)
-      let contributeTxId = creditsTxId
-      if (membershipPlaintext) {
-        try {
-          const contributeResult = await executeTransaction({
-            program: PROGRAM_ID,
-            function: 'contribute',
-            inputs: [
-              membershipPlaintext,
-              `${amount}u64`,
-            ],
-            fee: BASE_FEE,
-            privateFee: false,
-          })
-          contributeTxId = String(contributeResult?.transactionId || contributeResult)
-        } catch (e) {
-          console.warn('[Contribute] Contribute transaction failed, but credits were transferred:', e)
-        }
-      }
-      
-      setTransactionStatus('Contribution recorded successfully!')
-
-      // Wait briefly for wallet to process
-      await new Promise(resolve => setTimeout(resolve, 2000))
-
-      // Get circle details for current cycle
+      // Step 3: Get current cycle number from backend
       const response = await getCircleDetail(circleId)
+      const cycleNumber = response.circle.currentCycle || 1
+
+      setTransactionStatus('Awaiting wallet approval...')
+
+      // Step 4: Single transaction — contribute() handles credits transfer internally
+      // Contract: contribute(membership, payment, pot_address, cycle_number)
+      const result = await executeTransaction({
+        program: PROGRAM_ID,
+        function: 'contribute',
+        inputs: [
+          membershipPlaintext,               // membership: CircleMembership
+          recordPlaintext,                   // payment: credits.aleo/credits
+          CIRCLE_POT_ADDRESS,               // pot_address: address (public)
+          `${cycleNumber}u8`,               // cycle_number: u8 (public)
+        ],
+        fee: BASE_FEE,
+        privateFee: false, // CRITICAL: Shield Wallet requires privateFee: false
+      })
+
+      const txId = String(result?.transactionId || result)
+      console.log('[Contribute] Transaction ID:', txId)
+
+      setTransactionStatus('Contribution submitted successfully!')
+      await new Promise(resolve => setTimeout(resolve, 2000))
 
       // Record in backend
       try {
         await recordContributionBackend({
           circleId,
           memberAddress: address,
-          cycle: response.circle.currentCycle,
+          cycle: cycleNumber,
           amount,
-          transactionId: contributeTxId,
+          transactionId: txId,
         })
       } catch (backendError) {
         console.warn('Backend record failed (non-critical):', backendError)
@@ -251,8 +236,8 @@ export function useContribute() {
 
       return {
         success: true,
-        transactionId: contributeTxId,
-        creditsTransactionId: creditsTxId,
+        transactionId: txId,
+        creditsTransactionId: txId,
       }
     } catch (error) {
       console.error('Contribute error:', error)

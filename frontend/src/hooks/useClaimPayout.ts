@@ -2,6 +2,9 @@ import { useState, useCallback } from 'react'
 import { useWallet } from '@provablehq/aleo-wallet-adaptor-react'
 import { recordPayoutBackend, getCircleDetail } from '../services/api'
 
+const PROGRAM_ID = import.meta.env.VITE_PROGRAM_ID || 'zk_circles_v2.aleo'
+const BASE_FEE = 1_000_000 // 1 ALEO in microcredits
+
 interface ClaimPayoutResult {
   success: boolean
   transactionId?: string
@@ -10,7 +13,7 @@ interface ClaimPayoutResult {
 }
 
 export function useClaimPayout() {
-  const { connected, address } = useWallet()
+  const { connected, address, executeTransaction, requestRecords, decrypt } = useWallet()
   const [isClaiming, setIsClaiming] = useState(false)
   const [transactionStatus, setTransactionStatus] = useState<string | null>(null)
 
@@ -26,39 +29,72 @@ export function useClaimPayout() {
       // Get circle details to verify it's the user's turn
       const response = await getCircleDetail(circleId)
       const circle = response.circle
-      
+
       if (circle.status !== 1) {
         throw new Error('Circle is not active')
       }
 
-      // Calculate payout amount
+      const cycleNumber = circle.currentCycle || 1
       const payoutAmount = circle.contributionAmount * circle.maxMembers
-      
-      setTransactionStatus('Processing payout request...')
 
-      // NOTE: In production, the payout would be handled by:
-      // 1. A smart contract finalize function that transfers from program balance
-      // 2. Or a backend service that manages the pot and signs transfer transactions
-      // 
-      // For this demo, we demonstrate credits.aleo integration by:
-      // - Contributions use credits.aleo/transfer_private
-      // - Payouts are recorded and would use credits.aleo/transfer_public_to_private
-      //   from the program's public balance to the member's private balance
-      
-      // Simulate the payout processing
-      await new Promise(resolve => setTimeout(resolve, 2000))
-      
-      // In a full implementation, this would use executeTransaction with:
-      // credits.aleo/transfer_public_to_private(pot_address, address, payoutAmount)
-      
-      const txId = `payout_${circleId}_${circle.currentCycle}_${Date.now()}`
+      setTransactionStatus('Fetching your membership record...')
+
+      // Find membership record for this circle
+      let membershipPlaintext: string | null = null
+      try {
+        const programRecords = await requestRecords(PROGRAM_ID) || []
+        console.log('[ClaimPayout] Program records:', programRecords)
+
+        for (const r of programRecords as any[]) {
+          if (r.spent) continue
+          const pt = r.recordPlaintext || r.plaintext
+          if (pt && pt.includes(circleId)) {
+            membershipPlaintext = pt
+            break
+          }
+          // Try decrypt if ciphertext available
+          const ct = r.ciphertext || r.recordCiphertext
+          if (ct && decrypt) {
+            try {
+              const decPt = await decrypt(ct)
+              if (decPt && typeof decPt === 'string' && decPt.includes(circleId)) {
+                membershipPlaintext = decPt
+                break
+              }
+            } catch { /* try next */ }
+          }
+        }
+      } catch (e) {
+        console.warn('[ClaimPayout] Failed to fetch program records:', e)
+      }
+
+      if (!membershipPlaintext) {
+        throw new Error('No membership record found for this circle.')
+      }
+
+      setTransactionStatus('Awaiting wallet approval...')
+
+      // Execute claim_payout(membership: CircleMembership, cycle_number: u8)
+      const result = await executeTransaction({
+        program: PROGRAM_ID,
+        function: 'claim_payout',
+        inputs: [
+          membershipPlaintext,   // membership: CircleMembership
+          `${cycleNumber}u8`,    // cycle_number: u8 (public)
+        ],
+        fee: BASE_FEE,
+        privateFee: false, // CRITICAL: Shield Wallet requires privateFee: false
+      })
+
+      const txId = String(result?.transactionId || result)
+      console.log('[ClaimPayout] Transaction ID:', txId)
 
       // Record in backend
       try {
         await recordPayoutBackend({
           circleId,
           memberAddress: address,
-          cycle: circle.currentCycle,
+          cycle: cycleNumber,
           amount: payoutAmount,
           transactionId: txId,
         })
@@ -86,7 +122,7 @@ export function useClaimPayout() {
         error: error instanceof Error ? error.message : 'Unknown error',
       }
     }
-  }, [connected, address])
+  }, [connected, address, executeTransaction, requestRecords, decrypt])
 
   return {
     claimPayout,

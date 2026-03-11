@@ -3,7 +3,7 @@ import { useWallet } from '@provablehq/aleo-wallet-adaptor-react'
 import { generateSalt, hashToField } from '../utils/aleo-utils'
 import { saveCircleToBackend } from '../services/api'
 
-const PROGRAM_ID = import.meta.env.VITE_PROGRAM_ID || 'zk_circles_v1.aleo'
+const PROGRAM_ID = import.meta.env.VITE_PROGRAM_ID || 'zk_circles_v2.aleo'
 const BASE_FEE = 1_000_000 // 1 ALEO in microcredits
 
 interface CreateCircleParams {
@@ -44,13 +44,13 @@ export function useCreateCircle() {
       // Hash the circle name for privacy
       const nameHash = await hashToField(params.name)
       
-      // Prepare the inputs
-      // Note: playground_simple.leo doesn't have cycle_duration_blocks parameter
+      // Prepare the inputs — matches create_circle(name_hash, contribution_amount, max_members, cycle_duration_blocks, salt)
       const inputs = [
-        nameHash,                          // name_hash: field
-        `${params.contributionAmount}u64`, // contribution_amount: u64
-        `${params.maxMembers}u8`,          // max_members: u8
-        salt,                              // salt: field
+        nameHash,                                   // name_hash: field
+        `${params.contributionAmount}u64`,          // contribution_amount: u64
+        `${params.maxMembers}u8`,                   // max_members: u8
+        `${params.cycleDurationBlocks}u32`,         // cycle_duration_blocks: u32
+        salt,                                       // salt: field
       ]
 
       setTransactionStatus('Awaiting wallet approval...')
