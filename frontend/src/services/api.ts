@@ -3,7 +3,7 @@
  * Falls back to localStorage when backend is unavailable
  */
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001'
+import { BACKEND_URL } from '../config'
 const LOCAL_STORAGE_KEY = 'zkcircles_local_data'
 
 interface LocalStorageData {

@@ -6,14 +6,10 @@ import {
   setCachedMembership,
   synthesizeMembershipRecord,
 } from '../utils/membershipCache'
+import { PROGRAM_ID, CIRCLE_POT_ADDRESS, FEE_CONTRIBUTE } from '../config'
 
-const PROGRAM_ID = import.meta.env.VITE_PROGRAM_ID || 'zk_circles_v5.aleo'
-const BASE_FEE = 1_000_000
-
-// The pot address collects all contributions for a circle.
-const DEFAULT_POT_ADDRESS =
-  import.meta.env.VITE_CIRCLE_POT_ADDRESS ||
-  'aleo1yvukv56vxntqpc280d40dhuvz4prpwzvdvjcm9ggm8a8e3tffsgqc9ws3t'
+const BASE_FEE = FEE_CONTRIBUTE
+const DEFAULT_POT_ADDRESS = CIRCLE_POT_ADDRESS
 
 /**
  * Rebuild a Leo record plaintext string from a WalletAdapterRecord.

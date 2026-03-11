@@ -2,9 +2,9 @@ import { useState, useCallback } from 'react'
 import { useWallet } from '@provablehq/aleo-wallet-adaptor-react'
 import { updateCircleMembershipBackend } from '../services/api'
 import { setCachedMembership } from '../utils/membershipCache'
+import { PROGRAM_ID, FEE_JOIN } from '../config'
 
-const PROGRAM_ID = import.meta.env.VITE_PROGRAM_ID || 'zk_circles_v5.aleo'
-const BASE_FEE = 1_000_000 // 1 ALEO in microcredits
+const BASE_FEE = FEE_JOIN
 
 interface JoinCircleResult {
   success: boolean

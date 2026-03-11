@@ -3,9 +3,9 @@ import { useWallet } from '@provablehq/aleo-wallet-adaptor-react'
 import { generateSalt, hashToField } from '../utils/aleo-utils'
 import { saveCircleToBackend } from '../services/api'
 import { setCachedMembership } from '../utils/membershipCache'
+import { PROGRAM_ID, FEE_CREATE } from '../config'
 
-const PROGRAM_ID = import.meta.env.VITE_PROGRAM_ID || 'zk_circles_v5.aleo'
-const BASE_FEE = 1_000_000 // 1 ALEO in microcredits
+const BASE_FEE = FEE_CREATE
 
 interface CreateCircleParams {
   name: string
