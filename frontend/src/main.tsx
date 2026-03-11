@@ -10,8 +10,7 @@ import { DecryptPermission } from '@provablehq/aleo-wallet-adaptor-core'
 import { Network } from '@provablehq/aleo-types'
 import { LeoWalletAdapter } from '@provablehq/aleo-wallet-adaptor-leo'
 import { ShieldWalletAdapter } from '@provablehq/aleo-wallet-adaptor-shield'
-
-const PROGRAM_ID = import.meta.env.VITE_PROGRAM_ID || 'zk_circles_v5.aleo'
+import { PROGRAM_ID } from './config'
 
 // Configure wallets - Shield first for better UX, then Leo
 const wallets = [
