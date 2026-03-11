@@ -73,6 +73,28 @@ const mockData = {
 app.use(cors())
 app.use(express.json())
 
+// Root
+app.get('/', (req, res) => {
+  res.json({
+    name: 'ZkCircles API',
+    version: '1.0.0',
+    status: 'running',
+    program: 'zk_circles_v2.aleo',
+    network: 'testnet',
+    mode: USE_MOCK ? 'mock' : 'production',
+    endpoints: [
+      'GET  /health',
+      'GET  /api/circles',
+      'GET  /api/circles/:circleId',
+      'GET  /api/circles/member/:address',
+      'POST /api/circles',
+      'POST /api/circles/:circleId/members',
+      'POST /api/contributions',
+      'POST /api/payouts',
+    ]
+  })
+})
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ 
