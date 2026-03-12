@@ -106,7 +106,20 @@ async function pollForMembershipRecord(
       const records: any[] = (await (requestRecords as any)(PROGRAM_ID, true)) || []
       console.log(`[Contribute] requestRecords attempt ${attempt + 1}: ${records.length} records`)
       if (attempt === 0 && records.length > 0) {
-        console.log('[Contribute] Sample record:', JSON.stringify(records[0]))
+        // Log every field key and partial value so we can see the exact shape Shield returns
+        console.log('[Contribute] Record keys:', Object.keys(records[0]))
+        const r0 = records[0]
+        console.log('[Contribute] record[0] fields:', {
+          spent: r0.spent,
+          owner: r0.owner,
+          hasData: !!r0.data,
+          dataKeys: r0.data ? Object.keys(r0.data) : [],
+          ciphertext: r0.ciphertext ? r0.ciphertext.slice(0, 40) + '...' : 'MISSING',
+          recordCiphertext: r0.recordCiphertext ? r0.recordCiphertext.slice(0, 40) + '...' : 'MISSING',
+          recordPlaintext: r0.recordPlaintext ? r0.recordPlaintext.slice(0, 80) + '...' : 'MISSING',
+          plaintext: r0.plaintext ? r0.plaintext.slice(0, 80) + '...' : 'MISSING',
+          record: r0.record ? String(r0.record).slice(0, 80) + '...' : 'MISSING',
+        })
       }
 
       // First pass: respect spent flag
@@ -135,7 +148,8 @@ async function pollForMembershipRecord(
           if (!ct || typeof ct !== 'string' || !ct.startsWith('record1')) continue
           try {
             const dec = await decrypt(ct)
-            const decStr = typeof dec === 'string' ? dec : JSON.stringify(dec)
+            const decStr = typeof dec === 'string' ? dec : ((dec as any)?.text ?? JSON.stringify(dec))
+            console.log('[Contribute] decrypt result type:', typeof dec, 'first 100:', String(decStr).slice(0, 100))
             if (
               (decStr.includes(circleId) || decStr.includes(bareId)) &&
               isMembershipRecord({}, decStr)
@@ -230,6 +244,10 @@ export function useContribute() {
       // ── Step 3: Submit contribute(membership, cycle) ─────────────────────
       // The v6 contract sends to self.address (the program itself) — no
       // pot_address parameter needed. credits move: signer → program.
+      console.log('[Contribute] inputs[0] type:', typeof membershipPlaintext)
+      console.log('[Contribute] inputs[0] first 120 chars:', membershipPlaintext!.slice(0, 120))
+      console.log('[Contribute] inputs[0] has _nonce:', membershipPlaintext!.includes('_nonce'))
+      console.log('[Contribute] inputs[0] starts record1:', membershipPlaintext!.startsWith('record1'))
       const result = await executeTransaction({
         program: PROGRAM_ID,
         function: 'contribute',
