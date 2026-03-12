@@ -144,6 +144,25 @@ export function useClaimPayout() {
         throw new Error('Could not determine payout amount from circle details.')
       }
 
+      // ── CRITICAL: Verify all members have contributed before claiming ──
+      // The claim_payout transition calls transfer_public from the PROGRAM'S
+      // account. If not all members have contributed, the program balance is
+      // less than payout_amount and tf.await() WILL FAIL on-chain (REJECTED).
+      const maxMembers = onChain?.max_members ?? Number(response.circle.maxMembers) ?? 0
+      const contributorsThisCycle = (response.members ?? []).filter(
+        m => m.contributedCycles?.includes(cycleNumber)
+      ).length
+      console.log(`[ClaimPayout] Contributors for cycle ${cycleNumber}: ${contributorsThisCycle}/${maxMembers}`)
+      if (contributorsThisCycle < maxMembers) {
+        const remaining = maxMembers - contributorsThisCycle
+        throw new Error(
+          `Cannot claim yet — not all members have contributed for cycle ${cycleNumber}.\n\n` +
+          `${contributorsThisCycle} of ${maxMembers} members have contributed. ` +
+          `${remaining} still need${remaining === 1 ? 's' : ''} to contribute.\n\n` +
+          `The program will not have enough credits until all members contribute.`
+        )
+      }
+
       // Check if this user's joinOrder matches the cycle (only that member can claim)
       const myMember = response.members?.find(m => m.address === address)
       if (myMember) {

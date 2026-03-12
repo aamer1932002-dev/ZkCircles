@@ -209,6 +209,8 @@ export default function CircleDetail() {
   const isMyTurn = currentMemberTurn?.address === address
   const myMemberData = members.find(m => m.address === address)
   const hasContributedThisCycle = myMemberData?.contributedCycles?.includes(circle.currentCycle)
+  const contributorsThisCycle = members.filter(m => m.contributedCycles?.includes(circle.currentCycle)).length
+  const allContributedThisCycle = circle.status === 1 && contributorsThisCycle >= circle.maxMembers
   const potSize = (circle.contributionAmount * circle.maxMembers) / 1_000_000
   const progress = circle.status === 1 ? (circle.currentCycle / circle.totalCycles) * 100 : 0
 
@@ -546,30 +548,44 @@ export default function CircleDetail() {
                 {/* Claim Payout */}
                 {isMyTurn && !myMemberData?.hasReceivedPayout && (
                   <div>
-                    <div className="p-4 bg-forest-50 border border-forest-200 rounded-xl mb-4">
+                    {/* Contribution progress */}
+                    <div className={`p-4 border rounded-xl mb-4 ${allContributedThisCycle ? 'bg-forest-50 border-forest-200' : 'bg-amber-50 border-amber-200'}`}>
                       <div className="flex items-start gap-3">
-                        <Trophy className="w-5 h-5 text-forest-600 flex-shrink-0 mt-0.5" />
-                        <div>
-                          <p className="text-sm text-forest-800 font-medium">
-                            It's Your Turn!
+                        {allContributedThisCycle ? (
+                          <Trophy className="w-5 h-5 text-forest-600 flex-shrink-0 mt-0.5" />
+                        ) : (
+                          <Clock className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm font-medium ${allContributedThisCycle ? 'text-forest-800' : 'text-amber-800'}`}>
+                            {allContributedThisCycle ? "It's Your Turn — Ready to Claim!" : 'Waiting for All Contributions'}
                           </p>
-                          <p className="text-xs text-forest-700 mt-1">
-                            Claim your payout of {potSize.toFixed(3)} ALEO
+                          <p className={`text-xs mt-1 ${allContributedThisCycle ? 'text-forest-700' : 'text-amber-700'}`}>
+                            {allContributedThisCycle
+                              ? `Claim your payout of ${potSize.toFixed(3)} ALEO`
+                              : `${contributorsThisCycle} of ${circle.maxMembers} members have contributed for cycle ${circle.currentCycle}. All must contribute before you can claim.`}
                           </p>
+                          {/* Progress bar */}
+                          <div className="mt-2 h-1.5 bg-white/60 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all ${allContributedThisCycle ? 'bg-forest-500' : 'bg-amber-400'}`}
+                              style={{ width: `${Math.round((contributorsThisCycle / circle.maxMembers) * 100)}%` }}
+                            />
+                          </div>
                         </div>
                       </div>
                     </div>
                     <button
                       onClick={handleClaimPayout}
-                      disabled={isClaiming}
-                      className="btn-forest w-full flex items-center justify-center gap-2"
+                      disabled={isClaiming || !allContributedThisCycle}
+                      className="btn-forest w-full flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {isClaiming ? (
                         <Loader2 className="w-5 h-5 animate-spin" />
                       ) : (
                         <Trophy className="w-5 h-5" />
                       )}
-                      Claim Payout
+                      {allContributedThisCycle ? 'Claim Payout' : `Waiting for contributions (${contributorsThisCycle}/${circle.maxMembers})`}
                     </button>
                     
                     {claimStatus && (
