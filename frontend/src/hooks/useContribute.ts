@@ -5,7 +5,6 @@ import {
   getCachedMembership,
   setCachedMembership,
   clearCachedMembership,
-  synthesizeMembershipRecord,
 } from '../utils/membershipCache'
 import { PROGRAM_ID, FEE_CONTRIBUTE } from '../config'
 import { isStalePermissionsError, STALE_PERMISSIONS_USER_MSG, dispatchStalePermissionsEvent } from '../utils/walletErrors'
@@ -44,9 +43,14 @@ function isMembershipRecord(r: any, pt?: string): boolean {
 
 /**
  * Match a single CircleMembership record against the target circleId.
- * Returns plaintext string or null.
+ * Returns a record input string (ciphertext preferred, plaintext fallback) or null.
+ *
+ * IMPORTANT: never return a hand-built string without _nonce — Shield Wallet
+ * rejects it with "Failed to parse input #0".
  */
 function matchRecord(r: any, circleId: string, bareId: string): string | null {
+  let matched = false
+
   // Strategy 1: Provable SDK parsed data object r.data.circle_id
   if (r.data?.circle_id) {
     const storedId = String(r.data.circle_id).replace('.private', '').replace('.public', '')
@@ -55,19 +59,28 @@ function matchRecord(r: any, circleId: string, bareId: string): string | null {
       storedId === bareId ||
       storedId.replace(/field$/i, '') === bareId
     ) {
-      if (!isMembershipRecord(r)) return null // reject ContributionReceipt / PayoutReceipt
-      return reconstructMembershipPlaintext(r)
+      if (!isMembershipRecord(r)) return null
+      matched = true
     }
   }
 
   // Strategy 2: Pre-decoded plaintext string
   const pt: string | undefined = r.recordPlaintext || r.plaintext || r.record
-  if (pt && typeof pt === 'string') {
+  if (!matched && pt && typeof pt === 'string') {
     if (pt.includes(circleId) || pt.includes(bareId)) {
       if (!isMembershipRecord(r, pt)) return null
-      return pt
+      matched = true
     }
   }
+
+  if (!matched) return null
+
+  // Prefer ciphertext — Shield Wallet decrypts it internally, no _nonce required
+  const ct: string | undefined = r.ciphertext || r.recordCiphertext
+  if (ct && typeof ct === 'string' && ct.startsWith('record1')) return ct
+
+  // Fall back to full plaintext — MUST contain _nonce to be parseable
+  if (pt && typeof pt === 'string') return pt
 
   return null
 }
@@ -176,11 +189,15 @@ export function useContribute() {
       // ── Step 1: Locate CircleMembership record ──────────────────────────
       let membershipPlaintext: string | null = null
 
-      // 1a. Fast path: localStorage cache (populated after create/join)
+      // 1a. Fast path: localStorage cache (populated after create/join).
+      //     Only use if valid: ciphertext (record1...) or plaintext with _nonce.
       const cached = getCachedMembership(address, circleId)
-      if (cached) {
+      if (cached && (cached.startsWith('record1') || cached.includes('_nonce'))) {
         console.log('[Contribute] Using cached membership record')
         membershipPlaintext = cached
+      } else if (cached) {
+        console.warn('[Contribute] Cached record missing _nonce — ignoring, will re-fetch')
+        clearCachedMembership(address, circleId)
       }
 
       // 1b. Poll requestRecords (up to ~16 seconds, 5 attempts)
@@ -198,11 +215,15 @@ export function useContribute() {
         setCachedMembership(address, circleId, membershipPlaintext)
       }
 
-      // 1d. Last-resort: synthesize from known fields so Shield Wallet can
-      //     resolve the record from its own encrypted storage by commitment.
+      // 1d. No valid record found — refuse to submit rather than pass a
+      //     _nonce-less string that Shield Wallet will reject.
       if (!membershipPlaintext) {
-        console.warn('[Contribute] Using synthesized membership record (no nonce)')
-        membershipPlaintext = synthesizeMembershipRecord(address, circleId, amount)
+        setIsContributing(false)
+        setTransactionStatus(null)
+        return {
+          success: false,
+          error: 'Membership record not found in your wallet. Please wait a moment for the wallet to sync and try again.',
+        }
       }
 
       // ── Step 2: Get current cycle from backend ──────────────────────────

@@ -31,18 +31,31 @@ function isMembershipRecord(r: any, pt?: string): boolean {
 }
 
 function matchRecord(r: any, circleId: string, bareId: string): string | null {
+  let matched = false
+
   if (r.data?.circle_id) {
     const sid = String(r.data.circle_id).replace('.private', '').replace('.public', '')
     if (sid === circleId || sid === bareId || sid.replace(/field$/i, '') === bareId) {
       if (!isMembershipRecord(r)) return null
-      return reconstructMembershipPlaintext(r)
+      matched = true
     }
   }
+
   const pt: string | undefined = r.recordPlaintext || r.plaintext || r.record
-  if (pt && typeof pt === 'string' && (pt.includes(circleId) || pt.includes(bareId))) {
+  if (!matched && pt && typeof pt === 'string' && (pt.includes(circleId) || pt.includes(bareId))) {
     if (!isMembershipRecord(r, pt)) return null
-    return pt
+    matched = true
   }
+
+  if (!matched) return null
+
+  // Prefer ciphertext — Shield Wallet decrypts internally, no _nonce required
+  const ct: string | undefined = r.ciphertext || r.recordCiphertext
+  if (ct && typeof ct === 'string' && ct.startsWith('record1')) return ct
+
+  // Fall back to full plaintext (must include _nonce)
+  if (pt && typeof pt === 'string') return pt
+
   return null
 }
 
@@ -110,9 +123,12 @@ export function useClaimPayout() {
 
       // ── Layer 1: cache ───────────────────────────────────────────────────
       const cached = getCachedMembership(address, circleId)
-      if (cached) {
+      if (cached && (cached.startsWith('record1') || cached.includes('_nonce'))) {
         console.log('[ClaimPayout] cache hit')
         membershipInput = cached
+      } else if (cached) {
+        console.warn('[ClaimPayout] Cached record missing _nonce — ignoring, will re-fetch')
+        clearCachedMembership(address, circleId)
       }
 
       // ── Layer 2: poll wallet ─────────────────────────────────────────────
