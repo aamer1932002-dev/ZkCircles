@@ -6,6 +6,7 @@ import {
   setCachedMembership,
   clearCachedMembership,
   getJoinTxId,
+  setJoinTxId,
   fetchRecordCiphertextFromChain,
   fetchRecordByIndexFromChain,
   decryptAndCacheMembership,
@@ -28,7 +29,12 @@ interface ClaimResult {
 }
 
 export function useClaimPayout() {
-  const { connected, address, executeTransaction, requestRecords, decrypt, disconnect } = useWallet()
+  const wallet = useWallet() as any
+  const { connected, address, executeTransaction, requestRecords, decrypt, disconnect } = wallet
+  // Shield Wallet returns a temp 'shield_…' ID from executeTransaction().
+  // walletTxStatus() lets trackTransaction() resolve it to the real at1… on-chain ID.
+  const walletTxStatus: ((id: string) => Promise<{ status?: string; transactionId?: string }>) | undefined =
+    wallet.transactionStatus
   const [isClaiming, setIsClaiming] = useState(false)
   const [transactionStatus, setTransactionStatus] = useState<string | null>(null)
 
@@ -199,15 +205,15 @@ export function useClaimPayout() {
       const txId = String((result as any)?.transactionId || result)
       console.log('[ClaimPayout] TX:', txId)
 
-      // Track on-chain confirmation
-      const confirmation = await trackTransaction(txId, setTransactionStatus)
+      // Track on-chain confirmation (resolves shield_ temp IDs to real at1… IDs)
+      const confirmation = await trackTransaction(txId, setTransactionStatus, 180_000, 6_000, walletTxStatus)
 
       if (confirmation.status === 'rejected') {
         setIsClaiming(false)
         setTransactionStatus(null)
         return {
-          success: false, transactionId: txId,
-          error: `Payout REJECTED on-chain.\n${confirmation.rejectionReason || 'Finalize failed.'}\nTX: ${txId.slice(0, 24)}…\nFee was still charged.`,
+          success: false, transactionId: confirmation.txId,
+          error: `Payout REJECTED on-chain.\n${confirmation.rejectionReason || 'Finalize failed.'}\nTX: ${confirmation.txId.slice(0, 24)}…\nFee was still charged.`,
         }
       }
 
@@ -215,17 +221,26 @@ export function useClaimPayout() {
         setIsClaiming(false)
         setTransactionStatus(null)
         return {
-          success: false, transactionId: txId,
-          error: `Could not confirm payout on-chain within timeout. TX: ${txId.slice(0, 24)}…\nCheck the Aleo explorer.`,
+          success: false, transactionId: confirmation.txId,
+          error: `Could not confirm payout on-chain within timeout. TX: ${confirmation.txId.slice(0, 24)}…\nCheck the Aleo explorer.`,
         }
       }
 
-      // Accepted — membership is consumed, evict cache
+      // Accepted — membership consumed; cache the new one emitted by claim_payout
       setTransactionStatus('Payout confirmed on-chain!')
       clearCachedMembership(address, circleId)
+      // Store the real on-chain ID so Layer 3 can find the new membership record next cycle
+      setJoinTxId(address, circleId, confirmation.txId)
+      if (confirmation.recordOutputs?.length && decrypt) {
+        await decryptAndCacheMembership(address, circleId, confirmation.recordOutputs[0], decrypt)
+        console.log('[ClaimPayout] New membership cached (decrypted) from TX output')
+      } else if (confirmation.recordOutputs?.length) {
+        setCachedMembership(address, circleId, confirmation.recordOutputs[0])
+        console.log('[ClaimPayout] New membership ciphertext cached from TX output')
+      }
 
       try {
-        await recordPayoutBackend({ circleId, memberAddress: address, cycle: cycleNumber, amount: payoutAmount, transactionId: txId })
+        await recordPayoutBackend({ circleId, memberAddress: address, cycle: cycleNumber, amount: payoutAmount, transactionId: confirmation.txId })
       } catch (e) { console.warn('[ClaimPayout] backend failed:', e) }
 
       setIsClaiming(false)

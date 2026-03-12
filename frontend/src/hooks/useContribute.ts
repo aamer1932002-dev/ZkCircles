@@ -28,7 +28,12 @@ interface ContributeResult {
 }
 
 export function useContribute() {
-  const { connected, address, executeTransaction, requestRecords, decrypt, disconnect } = useWallet()
+  const wallet = useWallet() as any
+  const { connected, address, executeTransaction, requestRecords, decrypt, disconnect } = wallet
+  // Shield Wallet returns a temp 'shield_…' ID from executeTransaction().
+  // walletTxStatus() lets trackTransaction() resolve it to the real at1… on-chain ID.
+  const walletTxStatus: ((id: string) => Promise<{ status?: string; transactionId?: string }>) | undefined =
+    wallet.transactionStatus
   const [isContributing, setIsContributing] = useState(false)
   const [transactionStatus, setTransactionStatus] = useState<string | null>(null)
 
@@ -165,7 +170,7 @@ export function useContribute() {
       console.log('[Contribute] TX:', txId)
 
       // ── Step 4: Track on-chain confirmation ─────────────────────────────
-      const confirmation = await trackTransaction(txId, setTransactionStatus)
+      const confirmation = await trackTransaction(txId, setTransactionStatus, 180_000, 6_000, walletTxStatus)
 
       if (confirmation.status === 'rejected') {
         // Do NOT clear cache on rejection — the record was not consumed
@@ -190,7 +195,7 @@ export function useContribute() {
       // ── Step 5: Accepted — update caches & backend ──────────────────────
       setTransactionStatus('Confirmed on-chain!')
       clearCachedMembership(address, circleId)
-      setJoinTxId(address, circleId, txId) // Layer 3 will use this txId
+      setJoinTxId(address, circleId, confirmation.txId) // Layer 3 will use the real on-chain ID
 
       // Strategy: store the raw ciphertext FIRST (guaranteed usable for Layer 3
       // on the next cycle), then ALSO try to decrypt to plaintext+nonce for
@@ -202,7 +207,7 @@ export function useContribute() {
 
         // Secondary: fetch directly from chain if tracker didn't capture it
         if (!ciphertext) {
-          ciphertext = await fetchRecordByIndexFromChain(txId, PROGRAM_ID, 0)
+          ciphertext = await fetchRecordByIndexFromChain(confirmation.txId, PROGRAM_ID, 0)
         }
 
         if (ciphertext) {

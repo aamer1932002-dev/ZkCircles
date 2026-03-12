@@ -25,7 +25,12 @@ interface CreateCircleResult {
 }
 
 export function useCreateCircle() {
-  const { connected, address, executeTransaction, requestRecords, decrypt, disconnect } = useWallet()
+  const wallet = useWallet() as any
+  const { connected, address, executeTransaction, requestRecords, decrypt, disconnect } = wallet
+  // Shield Wallet returns a temp 'shield_…' ID from executeTransaction().
+  // walletTxStatus() lets trackTransaction() resolve it to the real at1… on-chain ID.
+  const walletTxStatus: ((id: string) => Promise<{ status?: string; transactionId?: string }>) | undefined =
+    wallet.transactionStatus
   const [isCreating, setIsCreating] = useState(false)
   const [transactionStatus, setTransactionStatus] = useState<string | null>(null)
 
@@ -75,10 +80,11 @@ export function useCreateCircle() {
 
       const txId = String(result?.transactionId || result)
       console.log('[CreateCircle] Transaction ID:', txId)
-      setJoinTxId(address, circleId, txId)
 
-      // Track on-chain confirmation
-      const confirmation = await trackTransaction(txId, setTransactionStatus)
+      // Track on-chain confirmation (resolves shield_ temp IDs to real at1… IDs)
+      const confirmation = await trackTransaction(txId, setTransactionStatus, 180_000, 6_000, walletTxStatus)
+      // Store the real on-chain ID so Layer 3 can locate the membership record
+      setJoinTxId(address, circleId, confirmation.txId)
 
       if (confirmation.status === 'rejected') {
         setIsCreating(false)

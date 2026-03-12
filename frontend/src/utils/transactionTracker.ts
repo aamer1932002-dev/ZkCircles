@@ -107,48 +107,118 @@ async function checkOnce(txId: string): Promise<TxConfirmation> {
   return { status: 'pending', txId }
 }
 
+// ─── Shield Wallet ID resolution ─────────────────────────────────────────────
+
+/**
+ * Signature of the wallet adapter's transactionStatus function.
+ * Shield Wallet exposes this on the useWallet() hook return value.
+ */
+type WalletStatusFn = (tempId: string) => Promise<{
+  status?: string
+  transactionId?: string
+  error?: string
+}>
+
+/**
+ * Shield Wallet's executeTransaction() returns a temporary "shield_…" ID.
+ * Poll the wallet adapter until it provides the real on-chain "at1…" TX ID.
+ * Returns null if the wallet reports failure or the timeout is exceeded.
+ */
+async function resolveShieldId(
+  shieldId: string,
+  walletGetStatus: WalletStatusFn,
+  timeoutMs = 90_000,
+): Promise<string | null> {
+  const start = Date.now()
+  let poll = 0
+  while (Date.now() - start < timeoutMs) {
+    poll++
+    try {
+      const r = await walletGetStatus(shieldId)
+      console.log(`[TxTracker] resolveShieldId attempt ${poll}:`, r)
+      if (r?.transactionId && !r.transactionId.startsWith('shield_')) {
+        return r.transactionId // real at1… on-chain ID
+      }
+      if (r?.status === 'failed' || r?.status === 'rejected' || r?.error) {
+        console.warn('[TxTracker] Wallet reports failure for shield_ ID:', r)
+        return null
+      }
+    } catch (e) {
+      console.warn('[TxTracker] resolveShieldId poll error:', e)
+    }
+    await new Promise(r => setTimeout(r, 3_000))
+  }
+  console.warn('[TxTracker] Timed out resolving shield_ ID:', shieldId)
+  return null
+}
+
 // ─── Polling loop ────────────────────────────────────────────────────────────
 
 /**
  * Poll until the transaction is confirmed (accepted / rejected) or timeout.
  *
- * @param txId        Transaction ID (at1…)
- * @param onProgress  Callback for UI status updates
- * @param maxWaitMs   Maximum wait time (default 180 s)
- * @param pollMs      Poll interval (default 6 s)
+ * @param txId              Transaction ID — either a real "at1…" or a Shield Wallet "shield_…" temp ID
+ * @param onProgress        Callback for UI status updates
+ * @param maxWaitMs         Maximum wait time (default 180 s)
+ * @param pollMs            Poll interval (default 6 s)
+ * @param walletGetStatus   Optional wallet adapter transactionStatus() function.
+ *                          Required when txId is a "shield_…" temp ID so we can
+ *                          resolve it to the real on-chain "at1…" ID before polling.
  */
 export async function trackTransaction(
   txId: string,
   onProgress?: (msg: string) => void,
   maxWaitMs = 180_000,
   pollMs = 6_000,
+  walletGetStatus?: WalletStatusFn,
 ): Promise<TxConfirmation> {
-  // Skip for mock / local-only IDs
-  if (!txId || txId.startsWith('mock_') || txId.startsWith('shield_')) {
+  // Skip for mock / local-only IDs only
+  if (!txId || txId.startsWith('mock_')) {
     return { status: 'accepted', txId }
+  }
+
+  // Shield Wallet temporary ID — resolve to real at1… on-chain ID first
+  let realTxId = txId
+  if (txId.startsWith('shield_')) {
+    if (!walletGetStatus) {
+      // walletGetStatus not provided — old assumed-accepted fallback (no record outputs)
+      console.warn('[TxTracker] shield_ ID received but walletGetStatus not provided. Record outputs unavailable.')
+      return { status: 'accepted', txId }
+    }
+    onProgress?.('Waiting for wallet to broadcast transaction…')
+    console.log('[TxTracker] Resolving shield_ temp ID:', txId)
+    const resolved = await resolveShieldId(txId, walletGetStatus, Math.min(maxWaitMs, 90_000))
+    if (!resolved) {
+      onProgress?.('Could not confirm — wallet did not return on-chain TX ID')
+      return { status: 'timeout', txId }
+    }
+    realTxId = resolved
+    console.log('[TxTracker] Resolved to real TX ID:', realTxId)
+    onProgress?.('Transaction broadcast — waiting for block inclusion…')
+  } else {
+    onProgress?.('Transaction broadcast — waiting for block inclusion…')
   }
 
   const start = Date.now()
   let attempt = 0
 
   // Initial delay — give the network time to include the TX in a block
-  onProgress?.('Transaction broadcast — waiting for block inclusion…')
   await new Promise(r => setTimeout(r, 5_000))
 
   while (Date.now() - start < maxWaitMs) {
     attempt++
     onProgress?.(`Confirming on-chain… (check ${attempt})`)
 
-    const result = await checkOnce(txId)
+    const result = await checkOnce(realTxId)
 
     if (result.status === 'accepted') {
       onProgress?.('Confirmed on-chain!')
-      return result
+      return { ...result, txId: realTxId }
     }
 
     if (result.status === 'rejected') {
       onProgress?.('REJECTED on-chain')
-      return result
+      return { ...result, txId: realTxId }
     }
 
     // Still pending — wait and poll again
@@ -156,5 +226,5 @@ export async function trackTransaction(
   }
 
   onProgress?.('Confirmation timed out — check the Aleo explorer')
-  return { status: 'timeout', txId }
+  return { status: 'timeout', txId: realTxId }
 }
