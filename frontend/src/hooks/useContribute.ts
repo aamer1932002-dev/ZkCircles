@@ -6,6 +6,8 @@ import {
   setCachedMembership,
   clearCachedMembership,
   setJoinTxId,
+  getJoinTxId,
+  fetchRecordByIndexFromChain,
 } from '../utils/membershipCache'
 import {
   resolveCachedRecord,
@@ -74,12 +76,26 @@ export function useContribute() {
         )
       }
 
-      // 1c. Cache the resolved input for next call
-      if (recordInput) {
-        setCachedMembership(address, circleId, recordInput)
+      // 1c. Layer 3: fetch record ciphertext directly from the Aleo explorer
+      //     using the stored TX ID (join or most recent contribute).
+      //     contribute emits (CircleMembership, ContributionReceipt, ...) so
+      //     the CircleMembership is always record output index 0.
+      if (!recordInput) {
+        const txId = getJoinTxId(address, circleId)
+        if (txId) {
+          setTransactionStatus('Fetching record from Aleo blockchain…')
+          console.log('[Contribute] Layer 3: fetching record[0] from tx', txId)
+          const ciphertext = await fetchRecordByIndexFromChain(txId, PROGRAM_ID, 0)
+          if (ciphertext && ciphertext.startsWith('record1')) {
+            const resolved = await resolveCachedRecord(ciphertext, decrypt)
+            if (resolved) {
+              console.log('[Contribute] Layer 3 success')
+              recordInput = resolved
+              setCachedMembership(address, circleId, resolved)
+            }
+          }
+        }
       }
-
-      // 1d. No valid record found
       if (!recordInput) {
         setIsContributing(false)
         setTransactionStatus(null)
@@ -140,7 +156,8 @@ export function useContribute() {
       const confirmation = await trackTransaction(txId, setTransactionStatus)
 
       if (confirmation.status === 'rejected') {
-        clearCachedMembership(address, circleId)
+        // Do NOT clear cache on rejection — the record was not consumed
+        // (the TX was rejected before finalize could spend it)
         setIsContributing(false)
         setTransactionStatus(null)
         return {

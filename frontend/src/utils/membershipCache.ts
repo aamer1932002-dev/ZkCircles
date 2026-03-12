@@ -122,6 +122,45 @@ export async function fetchRecordCiphertextFromChain(
 }
 
 /**
+ * For `contribute`, the TX emits (CircleMembership, ContributionReceipt, Future).
+ * CircleMembership is the FIRST record output (index 0).
+ * ContributionReceipt is the SECOND (index 1).
+ *
+ * This function fetches the specific record output by index from a TX.
+ */
+export async function fetchRecordByIndexFromChain(
+  txId: string,
+  programId: string,
+  recordIndex: number
+): Promise<string | null> {
+  if (!txId || txId.startsWith('shield_') || txId.startsWith('mock_')) return null
+  try {
+    const url = `https://api.explorer.provable.com/v1/testnet/transaction/${txId}`
+    const res = await fetch(url, { signal: AbortSignal.timeout(10_000) })
+    if (!res.ok) return null
+    const tx = await res.json()
+
+    const records: string[] = []
+    for (const t of (tx?.execution?.transitions ?? [])) {
+      if (!t?.program?.startsWith(programId.replace('.aleo', ''))) continue
+      for (const output of t?.outputs ?? []) {
+        if (output.type === 'record' && output.value) {
+          records.push(output.value as string)
+        }
+      }
+    }
+    if (records.length > recordIndex) {
+      console.log(`[fetchRecordByIndex] Found record[${recordIndex}] in tx ${txId}`)
+      return records[recordIndex]
+    }
+    return null
+  } catch (e) {
+    console.warn('[fetchRecordByIndex] Error:', e)
+    return null
+  }
+}
+
+/**
  * Build a partial CircleMembership plaintext from known fields AS LAST RESORT.
  * Without _nonce Shield Wallet cannot parse this as a record — only use this
  * to produce a descriptive error message, not as an actual transaction input.

@@ -7,6 +7,7 @@ import {
   clearCachedMembership,
   getJoinTxId,
   fetchRecordCiphertextFromChain,
+  fetchRecordByIndexFromChain,
 } from '../utils/membershipCache'
 import {
   resolveCachedRecord,
@@ -69,12 +70,17 @@ export function useClaimPayout() {
       }
 
       // ── Layer 3: fetch raw ciphertext from Aleo testnet → decrypt it
+      // For join/create TX: CircleMembership is record output [0]
+      // For contribute TX: CircleMembership is also record output [0] (receipts are [1]+)
       if (!membershipInput) {
         const txId = getJoinTxId(address, circleId)
         if (txId) {
-          setTransactionStatus('Fetching record from Aleo testnet…')
-          console.log('[ClaimPayout] querying testnet for txId:', txId)
-          const ciphertext = await fetchRecordCiphertextFromChain(txId, PROGRAM_ID)
+          setTransactionStatus('Fetching record from Aleo blockchain…')
+          console.log('[ClaimPayout] querying chain for txId:', txId)
+          // Try index-specific fetch first (CircleMembership is always output[0])
+          const ciphertext =
+            (await fetchRecordByIndexFromChain(txId, PROGRAM_ID, 0)) ||
+            (await fetchRecordCiphertextFromChain(txId, PROGRAM_ID))
           if (ciphertext && ciphertext.startsWith('record1')) {
             const resolved = await resolveCachedRecord(ciphertext, decrypt)
             if (resolved) {
