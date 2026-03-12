@@ -12,17 +12,6 @@ import { isStalePermissionsError, STALE_PERMISSIONS_USER_MSG, dispatchStalePermi
 
 const BASE_FEE = FEE_TRANSFER
 
-function reconstructMembershipPlaintext(r: any): string {
-  const raw: string | undefined = r.recordPlaintext || r.plaintext || r.record
-  if (raw && typeof raw === 'string') return raw
-  if (!r.data) return ''
-  // Fields in Leo struct declaration order: owner, circle_id, contribution_amount
-  const owner = r.owner ? `${r.owner}.private` : (r.data.owner || '')
-  const circleId = r.data.circle_id || ''
-  const contribAmt = r.data.contribution_amount || ''
-  return `{\n  owner: ${owner},\n  circle_id: ${circleId},\n  contribution_amount: ${contribAmt}\n}`
-}
-
 function isMembershipRecord(r: any, pt?: string): boolean {
   if (r.data) return 'contribution_amount' in r.data && !('cycle' in r.data)
   if (pt) return pt.includes('contribution_amount') && !/(\bcycle\b.*:)/.test(pt)

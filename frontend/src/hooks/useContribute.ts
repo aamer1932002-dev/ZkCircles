@@ -13,21 +13,6 @@ import { isStalePermissionsError, STALE_PERMISSIONS_USER_MSG, dispatchStalePermi
 const BASE_FEE = FEE_CONTRIBUTE
 
 /**
- * Rebuild a CircleMembership Leo record plaintext from a WalletAdapterRecord.
- * Fields MUST be in declaration order: owner, circle_id, contribution_amount.
- * Object.entries() order is unreliable, so we build explicitly.
- */
-function reconstructMembershipPlaintext(r: any): string {
-  const raw: string | undefined = r.recordPlaintext || r.plaintext || r.record
-  if (raw && typeof raw === 'string') return raw
-  if (!r.data) return ''
-  const owner = r.owner ? `${r.owner}.private` : (r.data.owner || '')
-  const circleId = r.data.circle_id || ''
-  const contribAmt = r.data.contribution_amount || ''
-  return `{\n  owner: ${owner},\n  circle_id: ${circleId},\n  contribution_amount: ${contribAmt}\n}`
-}
-
-/**
  * Return true only for CircleMembership records.
  * CircleMembership has `contribution_amount` but NOT `cycle`.
  * ContributionReceipt and PayoutReceipt both have `cycle` — reject them.
