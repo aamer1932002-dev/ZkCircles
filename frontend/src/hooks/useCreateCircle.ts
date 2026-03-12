@@ -3,6 +3,7 @@ import { useWallet } from '@provablehq/aleo-wallet-adaptor-react'
 import { generateSalt, hashToField } from '../utils/aleo-utils'
 import { saveCircleToBackend } from '../services/api'
 import { setCachedMembership, setJoinTxId } from '../utils/membershipCache'
+import { isCircleMatch, extractRecordInput } from '../utils/recordResolver'
 import { PROGRAM_ID, FEE_CREATE } from '../config'
 import { isStalePermissionsError, STALE_PERMISSIONS_USER_MSG, dispatchStalePermissionsEvent } from '../utils/walletErrors'
 
@@ -23,7 +24,7 @@ interface CreateCircleResult {
 }
 
 export function useCreateCircle() {
-  const { connected, address, executeTransaction, requestRecords, disconnect } = useWallet()
+  const { connected, address, executeTransaction, requestRecords, decrypt, disconnect } = useWallet()
   const [isCreating, setIsCreating] = useState(false)
   const [transactionStatus, setTransactionStatus] = useState<string | null>(null)
 
@@ -89,29 +90,13 @@ export function useCreateCircle() {
           const records: any[] = (await (requestRecords as any)(PROGRAM_ID, true)) || []
           const bareId = circleId.replace(/field$/i, '')
           for (const r of records) {
-            const ciId = r.data?.circle_id
-              ? String(r.data.circle_id).replace('.private', '').replace('.public', '')
-              : ''
-            const pt: string | undefined = r.recordPlaintext || r.plaintext || r.record
-            const ct: string | undefined = r.ciphertext || r.recordCiphertext
-            const isMembership = r.data
-              ? 'contribution_amount' in (r.data as any) && !('cycle' in (r.data as any))
-              : true
-            if (
-              isMembership &&
-              (ciId === circleId || ciId === bareId ||
-               (pt && (pt.includes(circleId) || pt.includes(bareId))))
-            ) {
-              // Prefer ciphertext — Shield Wallet decrypts internally for ZK proof
-              const recordInput = (ct && ct.startsWith('record1'))
-                ? ct
-                : (pt && pt.includes('_nonce') ? pt : null)
-              if (recordInput) {
-                setCachedMembership(address, circleId, recordInput)
-                console.log('[CreateCircle] Membership record cached')
-              }
-              break
+            if (!isCircleMatch(r, circleId, bareId)) continue
+            const recordInput = await extractRecordInput(r, decrypt)
+            if (recordInput) {
+              setCachedMembership(address, circleId, recordInput)
+              console.log('[CreateCircle] Membership record cached')
             }
+            break
           }
         } catch (e) {
           console.warn('[CreateCircle] Could not pre-cache membership record:', e)

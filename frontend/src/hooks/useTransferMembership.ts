@@ -7,86 +7,14 @@ import {
   getJoinTxId,
   fetchRecordCiphertextFromChain,
 } from '../utils/membershipCache'
+import {
+  resolveCachedRecord,
+  pollForMembershipRecord,
+} from '../utils/recordResolver'
 import { PROGRAM_ID, FEE_TRANSFER } from '../config'
 import { isStalePermissionsError, STALE_PERMISSIONS_USER_MSG, dispatchStalePermissionsEvent } from '../utils/walletErrors'
 
 const BASE_FEE = FEE_TRANSFER
-
-function isMembershipRecord(r: any, pt?: string): boolean {
-  if (r.data) return 'contribution_amount' in r.data && !('cycle' in r.data)
-  if (pt) return pt.includes('contribution_amount') && !/(\bcycle\b.*:)/.test(pt)
-  return true
-}
-
-function matchRecord(r: any, circleId: string, bareId: string): string | null {
-  let matched = false
-
-  if (r.data?.circle_id) {
-    const sid = String(r.data.circle_id).replace('.private', '').replace('.public', '')
-    if (sid === circleId || sid === bareId || sid.replace(/field$/i, '') === bareId) {
-      if (!isMembershipRecord(r)) return null
-      matched = true
-    }
-  }
-
-  const pt: string | undefined = r.recordPlaintext || r.plaintext || r.record
-  if (!matched && pt && typeof pt === 'string' && (pt.includes(circleId) || pt.includes(bareId))) {
-    if (!isMembershipRecord(r, pt)) return null
-    matched = true
-  }
-
-  if (!matched) return null
-
-  // Prefer ciphertext — Shield Wallet decrypts internally for ZK proof.
-  const ct: string | undefined = r.ciphertext || r.recordCiphertext
-  if (ct && typeof ct === 'string' && ct.startsWith('record1')) return ct
-
-  // Fallback: Leo plaintext with _nonce
-  if (pt && typeof pt === 'string' && pt.includes('_nonce')) return pt
-
-  // Last resort: plaintext without _nonce
-  if (pt && typeof pt === 'string') return pt
-
-  return null
-}
-
-async function pollWalletRecords(
-  requestRecords: (program: string, includePlaintext?: boolean) => Promise<any>,
-  decrypt: ((ct: string) => Promise<any>) | undefined,
-  circleId: string,
-  onStatus: (msg: string) => void
-): Promise<string | null> {
-  const bareId = circleId.replace(/field$/i, '')
-  const delays = [0, 2000, 4000, 5000, 5000]
-
-  for (let i = 0; i < 5; i++) {
-    if (delays[i] > 0) {
-      onStatus(`Waiting for wallet sync… (${i + 1}/5)`)
-      await new Promise(r => setTimeout(r, delays[i]))
-    }
-    try {
-      const records: any[] = (await requestRecords(PROGRAM_ID, true)) || []
-      console.log(`[Transfer] wallet poll ${i + 1}: ${records.length} records`)
-
-      for (const r of records) { if (r.spent) continue; const f = matchRecord(r, circleId, bareId); if (f) return f }
-      for (const r of records) { const f = matchRecord(r, circleId, bareId); if (f) return f }
-      if (decrypt) {
-        for (const r of records) {
-          const ct = r.ciphertext || r.recordCiphertext
-          if (!ct || typeof ct !== 'string' || !ct.startsWith('record1')) continue
-          try {
-            const dec = await decrypt(ct)
-            const s = typeof dec === 'string' ? dec : JSON.stringify(dec)
-            if ((s.includes(circleId) || s.includes(bareId)) && isMembershipRecord({}, s)) return ct // return ciphertext
-          } catch { /* next */ }
-        }
-      }
-    } catch (err: any) {
-      console.warn(`[Transfer] wallet poll ${i + 1} error:`, err?.message)
-    }
-  }
-  return null
-}
 
 interface TransferResult {
   success: boolean
@@ -114,20 +42,33 @@ export function useTransferMembership() {
     try {
       let membershipInput: string | null = null
 
-      // ── Layer 1: cache ───────────────────────────────────────────────────
+      // ── Layer 1: cache ── resolveCachedRecord decrypts ciphertext
       const cached = getCachedMembership(address, circleId)
       if (cached) {
-        console.log('[Transfer] cache hit')
-        membershipInput = cached
+        const resolved = await resolveCachedRecord(cached, decrypt)
+        if (resolved) {
+          console.log('[Transfer] cache hit')
+          membershipInput = resolved
+          if (resolved !== cached) setCachedMembership(address, circleId, resolved)
+        } else {
+          console.warn('[Transfer] Cached record unusable — clearing')
+          clearCachedMembership(address, circleId)
+        }
       }
 
-      // ── Layer 2: poll wallet ─────────────────────────────────────────────
+      // ── Layer 2: poll wallet ── extractRecordInput decrypts each match
       if (!membershipInput && requestRecords) {
-        membershipInput = await pollWalletRecords(requestRecords, decrypt, circleId, setTransactionStatus)
+        membershipInput = await pollForMembershipRecord(
+          requestRecords as any,
+          decrypt,
+          circleId,
+          setTransactionStatus,
+          'Transfer'
+        )
         if (membershipInput) setCachedMembership(address, circleId, membershipInput)
       }
 
-      // ── Layer 3: fetch ciphertext from Aleo testnet ──────────────────────
+      // ── Layer 3: fetch ciphertext from Aleo testnet → decrypt it
       if (!membershipInput) {
         const txId = getJoinTxId(address, circleId)
         if (txId) {
@@ -135,9 +76,12 @@ export function useTransferMembership() {
           console.log('[Transfer] querying testnet for txId:', txId)
           const ciphertext = await fetchRecordCiphertextFromChain(txId, PROGRAM_ID)
           if (ciphertext) {
-            console.log('[Transfer] got ciphertext from chain')
-            membershipInput = ciphertext
-            setCachedMembership(address, circleId, ciphertext)
+            const resolved = await resolveCachedRecord(ciphertext, decrypt)
+            if (resolved) {
+              console.log('[Transfer] using chain record (decrypted:', resolved !== ciphertext, ')')
+              membershipInput = resolved
+              setCachedMembership(address, circleId, resolved)
+            }
           }
         }
       }
@@ -152,6 +96,12 @@ export function useTransferMembership() {
 
       setTransactionStatus('Awaiting wallet approval…')
 
+      const fmt = membershipInput.startsWith('record1')
+        ? 'ciphertext'
+        : membershipInput.includes('_nonce') ? 'plaintext+nonce' : 'bare-plaintext'
+      console.log(`[Transfer] executeTransaction input[0] format: ${fmt}, length: ${membershipInput.length}`)
+      console.log('[Transfer] input[0] first 120 chars:', membershipInput.slice(0, 120))
+
       const result = await executeTransaction({
         program: PROGRAM_ID,
         function: 'transfer_membership',
@@ -161,6 +111,7 @@ export function useTransferMembership() {
         ],
         fee: BASE_FEE,
         privateFee: false,
+        recordIndices: [0],   // Tell wallet that inputs[0] is a record
       })
 
       const txId = String((result as any)?.transactionId || result)

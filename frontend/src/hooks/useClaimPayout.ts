@@ -8,86 +8,14 @@ import {
   getJoinTxId,
   fetchRecordCiphertextFromChain,
 } from '../utils/membershipCache'
+import {
+  resolveCachedRecord,
+  pollForMembershipRecord,
+} from '../utils/recordResolver'
 import { PROGRAM_ID, FEE_CLAIM } from '../config'
 import { isStalePermissionsError, STALE_PERMISSIONS_USER_MSG, dispatchStalePermissionsEvent } from '../utils/walletErrors'
 
 const BASE_FEE = FEE_CLAIM
-
-function isMembershipRecord(r: any, pt?: string): boolean {
-  if (r.data) return 'contribution_amount' in r.data && !('cycle' in r.data)
-  if (pt) return pt.includes('contribution_amount') && !/(\bcycle\b.*:)/.test(pt)
-  return true
-}
-
-function matchRecord(r: any, circleId: string, bareId: string): string | null {
-  let matched = false
-
-  if (r.data?.circle_id) {
-    const sid = String(r.data.circle_id).replace('.private', '').replace('.public', '')
-    if (sid === circleId || sid === bareId || sid.replace(/field$/i, '') === bareId) {
-      if (!isMembershipRecord(r)) return null
-      matched = true
-    }
-  }
-
-  const pt: string | undefined = r.recordPlaintext || r.plaintext || r.record
-  if (!matched && pt && typeof pt === 'string' && (pt.includes(circleId) || pt.includes(bareId))) {
-    if (!isMembershipRecord(r, pt)) return null
-    matched = true
-  }
-
-  if (!matched) return null
-
-  // Prefer ciphertext — Shield Wallet decrypts internally for ZK proof.
-  const ct: string | undefined = r.ciphertext || r.recordCiphertext
-  if (ct && typeof ct === 'string' && ct.startsWith('record1')) return ct
-
-  // Fallback: Leo plaintext with _nonce
-  if (pt && typeof pt === 'string' && pt.includes('_nonce')) return pt
-
-  // Last resort: plaintext without _nonce
-  if (pt && typeof pt === 'string') return pt
-
-  return null
-}
-
-async function pollWalletRecords(
-  requestRecords: (program: string) => Promise<any>,
-  decrypt: ((ct: string) => Promise<any>) | undefined,
-  circleId: string,
-  onStatus: (msg: string) => void
-): Promise<string | null> {
-  const bareId = circleId.replace(/field$/i, '')
-  const delays = [0, 2000, 4000, 5000, 5000]
-
-  for (let i = 0; i < 5; i++) {
-    if (delays[i] > 0) {
-      onStatus(`Waiting for wallet sync… (${i + 1}/5)`)
-      await new Promise(r => setTimeout(r, delays[i]))
-    }
-    try {
-      const records: any[] = (await (requestRecords as any)(PROGRAM_ID, true)) || []
-      console.log(`[ClaimPayout] wallet poll ${i + 1}: ${records.length} records`)
-
-      for (const r of records) { if (r.spent) continue; const f = matchRecord(r, circleId, bareId); if (f) return f }
-      for (const r of records) { const f = matchRecord(r, circleId, bareId); if (f) return f }
-      if (decrypt) {
-        for (const r of records) {
-          const ct = r.ciphertext || r.recordCiphertext
-          if (!ct || typeof ct !== 'string' || !ct.startsWith('record1')) continue
-          try {
-            const dec = await decrypt(ct)
-            const s = typeof dec === 'string' ? dec : JSON.stringify(dec)
-            if ((s.includes(circleId) || s.includes(bareId)) && isMembershipRecord({}, s)) return ct // return ciphertext
-          } catch { /* next */ }
-        }
-      }
-    } catch (err: any) {
-      console.warn(`[ClaimPayout] wallet poll ${i + 1} error:`, err?.message)
-    }
-  }
-  return null
-}
 
 interface ClaimResult {
   success: boolean
@@ -112,23 +40,33 @@ export function useClaimPayout() {
     try {
       let membershipInput: string | null = null
 
-      // ── Layer 1: cache ────────────────────────────────────────────
+      // ── Layer 1: cache ── resolveCachedRecord decrypts ciphertext
       const cached = getCachedMembership(address, circleId)
-      if (cached && (cached.startsWith('record1') || cached.includes('_nonce'))) {
-        console.log('[ClaimPayout] cache hit')
-        membershipInput = cached
-      } else if (cached) {
-        console.warn('[ClaimPayout] Cached record is not a valid ciphertext/plaintext — ignoring, will re-fetch')
-        clearCachedMembership(address, circleId)
+      if (cached) {
+        const resolved = await resolveCachedRecord(cached, decrypt)
+        if (resolved) {
+          console.log('[ClaimPayout] cache hit')
+          membershipInput = resolved
+          if (resolved !== cached) setCachedMembership(address, circleId, resolved)
+        } else {
+          console.warn('[ClaimPayout] Cached record unusable — clearing')
+          clearCachedMembership(address, circleId)
+        }
       }
 
-      // ── Layer 2: poll wallet ─────────────────────────────────────────────
+      // ── Layer 2: poll wallet ── extractRecordInput decrypts each match
       if (!membershipInput && requestRecords) {
-        membershipInput = await pollWalletRecords(requestRecords, decrypt, circleId, setTransactionStatus)
+        membershipInput = await pollForMembershipRecord(
+          requestRecords as any,
+          decrypt,
+          circleId,
+          setTransactionStatus,
+          'ClaimPayout'
+        )
         if (membershipInput) setCachedMembership(address, circleId, membershipInput)
       }
 
-      // ── Layer 3: fetch raw ciphertext from Aleo testnet ──────────────────
+      // ── Layer 3: fetch raw ciphertext from Aleo testnet → decrypt it
       if (!membershipInput) {
         const txId = getJoinTxId(address, circleId)
         if (txId) {
@@ -136,10 +74,12 @@ export function useClaimPayout() {
           console.log('[ClaimPayout] querying testnet for txId:', txId)
           const ciphertext = await fetchRecordCiphertextFromChain(txId, PROGRAM_ID)
           if (ciphertext && ciphertext.startsWith('record1')) {
-            // Use the ciphertext directly — Shield Wallet decrypts it internally
-            console.log('[ClaimPayout] using chain ciphertext directly')
-            membershipInput = ciphertext
-            setCachedMembership(address, circleId, ciphertext)
+            const resolved = await resolveCachedRecord(ciphertext, decrypt)
+            if (resolved) {
+              console.log('[ClaimPayout] using chain record (decrypted:', resolved !== ciphertext, ')')
+              membershipInput = resolved
+              setCachedMembership(address, circleId, resolved)
+            }
           }
         }
       }
@@ -165,6 +105,12 @@ export function useClaimPayout() {
 
       setTransactionStatus('Awaiting wallet approval…')
 
+      const fmt = membershipInput.startsWith('record1')
+        ? 'ciphertext'
+        : membershipInput.includes('_nonce') ? 'plaintext+nonce' : 'bare-plaintext'
+      console.log(`[ClaimPayout] executeTransaction input[0] format: ${fmt}, length: ${membershipInput.length}`)
+      console.log('[ClaimPayout] input[0] first 120 chars:', membershipInput.slice(0, 120))
+
       const result = await executeTransaction({
         program: PROGRAM_ID,
         function: 'claim_payout',
@@ -175,6 +121,7 @@ export function useClaimPayout() {
         ],
         fee: BASE_FEE,
         privateFee: false,
+        recordIndices: [0],         // Tell wallet that inputs[0] is a record
       })
 
       const txId = String((result as any)?.transactionId || result)
