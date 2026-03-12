@@ -12,6 +12,7 @@ import {
   resolveCachedRecord,
   pollForMembershipRecord,
 } from '../utils/recordResolver'
+import { queryCircleOnChain } from '../utils/onChainQuery'
 import { PROGRAM_ID, FEE_CLAIM } from '../config'
 import { isStalePermissionsError, STALE_PERMISSIONS_USER_MSG, dispatchStalePermissionsEvent } from '../utils/walletErrors'
 
@@ -92,15 +93,58 @@ export function useClaimPayout() {
         )
       }
 
-      // ── Get current cycle + circle info (needed for payout amount) ────────
+      // ── Pre-flight: query on-chain circles mapping for true state ──────
+      setTransactionStatus('Verifying on-chain circle state…')
+      const onChain = await queryCircleOnChain(circleId)
       const response = await getCircleDetail(circleId)
-      const cycleNumber = Number(response.circle.currentCycle) || 1
-      // payout = every member's contribution for one cycle
-      const contributionAmount = Number(response.circle.contributionAmount) || 0
-      const maxMembers = Number(response.circle.maxMembers) || 0
-      const payoutAmount = contributionAmount * maxMembers
+
+      let cycleNumber: number
+      let payoutAmount: number
+
+      if (onChain) {
+        console.log('[ClaimPayout] On-chain CircleInfo:', onChain)
+
+        // Validate circle is active
+        if (onChain.status !== 1) {
+          const statusNames: Record<number, string> = { 0: 'Forming', 1: 'Active', 2: 'Completed', 3: 'Cancelled' }
+          throw new Error(
+            `Circle is "${statusNames[onChain.status] || onChain.status}" on-chain (not Active). ` +
+            'Payouts can only be claimed when the circle is Active.'
+          )
+        }
+
+        cycleNumber = onChain.current_cycle
+        payoutAmount = onChain.contribution_amount * onChain.max_members
+
+        if (cycleNumber === 0) {
+          throw new Error('Circle has not started yet on-chain (current_cycle = 0). Ensure all members have joined.')
+        }
+
+        console.log(`[ClaimPayout] On-chain: cycle=${cycleNumber}, payout=${payoutAmount} (${onChain.contribution_amount} × ${onChain.max_members})`)
+      } else {
+        // Fallback to backend data
+        console.warn('[ClaimPayout] Could not query on-chain state, using backend data')
+        cycleNumber = Number(response.circle.currentCycle) || 1
+        const contributionAmount = Number(response.circle.contributionAmount) || 0
+        const maxMembers = Number(response.circle.maxMembers) || 0
+        payoutAmount = contributionAmount * maxMembers
+      }
+
       if (payoutAmount <= 0) {
         throw new Error('Could not determine payout amount from circle details.')
+      }
+
+      // Check if this user's joinOrder matches the cycle (only that member can claim)
+      const myMember = response.members?.find(m => m.address === address)
+      if (myMember) {
+        console.log(`[ClaimPayout] My joinOrder=${myMember.joinOrder}, currentCycle=${cycleNumber}`)
+        if (myMember.joinOrder !== cycleNumber) {
+          throw new Error(
+            `It's not your turn to claim. Your join order is #${myMember.joinOrder}, ` +
+            `but the current cycle is ${cycleNumber}. ` +
+            `Only member #${cycleNumber} can claim this cycle's payout.`
+          )
+        }
       }
 
       setTransactionStatus('Awaiting wallet approval…')
@@ -108,8 +152,7 @@ export function useClaimPayout() {
       const fmt = membershipInput.startsWith('record1')
         ? 'ciphertext'
         : membershipInput.includes('_nonce') ? 'plaintext+nonce' : 'bare-plaintext'
-      console.log(`[ClaimPayout] executeTransaction input[0] format: ${fmt}, length: ${membershipInput.length}`)
-      console.log('[ClaimPayout] input[0] first 120 chars:', membershipInput.slice(0, 120))
+      console.log(`[ClaimPayout] executeTransaction: cycle=${cycleNumber}u8, payout=${payoutAmount}u64, record=[${fmt}]`)
 
       const result = await executeTransaction({
         program: PROGRAM_ID,

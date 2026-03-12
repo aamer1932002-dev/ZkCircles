@@ -11,6 +11,7 @@ import {
   resolveCachedRecord,
   pollForMembershipRecord,
 } from '../utils/recordResolver'
+import { queryCircleOnChain } from '../utils/onChainQuery'
 import { PROGRAM_ID, FEE_CONTRIBUTE } from '../config'
 import { isStalePermissionsError, STALE_PERMISSIONS_USER_MSG, dispatchStalePermissionsEvent } from '../utils/walletErrors'
 
@@ -87,9 +88,29 @@ export function useContribute() {
         }
       }
 
-      // ── Step 2: Get current cycle from backend ──────────────────────────
+      // ── Step 2: Get current cycle — prefer on-chain truth ────────────────
+      setTransactionStatus('Verifying on-chain circle state…')
+      const onChain = await queryCircleOnChain(circleId)
       const response = await getCircleDetail(circleId)
-      const cycle = response.circle.currentCycle || 1
+      let cycle: number
+
+      if (onChain) {
+        console.log('[Contribute] On-chain CircleInfo:', onChain)
+        if (onChain.status !== 1) {
+          const names: Record<number, string> = { 0: 'Forming', 1: 'Active', 2: 'Completed', 3: 'Cancelled' }
+          return {
+            success: false,
+            error: `Circle is "${names[onChain.status] || onChain.status}" on-chain. Contributions are only accepted when Active.`,
+          }
+        }
+        cycle = onChain.current_cycle
+        if (cycle === 0) {
+          return { success: false, error: 'Circle has not started yet on-chain (current_cycle = 0). Ensure all members have joined.' }
+        }
+      } else {
+        console.warn('[Contribute] On-chain query failed, using backend data')
+        cycle = response.circle.currentCycle || 1
+      }
 
       setTransactionStatus('Awaiting wallet approval…')
 
@@ -97,8 +118,7 @@ export function useContribute() {
       const fmt = recordInput.startsWith('record1')
         ? 'ciphertext'
         : recordInput.includes('_nonce') ? 'plaintext+nonce' : 'bare-plaintext'
-      console.log(`[Contribute] executeTransaction input[0] format: ${fmt}, length: ${recordInput.length}`)
-      console.log('[Contribute] input[0] first 120 chars:', recordInput.slice(0, 120))
+      console.log(`[Contribute] executeTransaction: cycle=${cycle}u8, record=[${fmt}]`)
 
       const result = await executeTransaction({
         program: PROGRAM_ID,
