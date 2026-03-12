@@ -190,25 +190,41 @@ export function useContribute() {
       // ── Step 5: Accepted — update caches & backend ──────────────────────
       setTransactionStatus('Confirmed on-chain!')
       clearCachedMembership(address, circleId)
-      setJoinTxId(address, circleId, txId)
+      setJoinTxId(address, circleId, txId) // Layer 3 will use this txId
 
-      // Decrypt the fresh CircleMembership ciphertext immediately and cache the
-      // plaintext+nonce.  This means cycle N+1 can use Layer 1 (cache) directly
-      // WITHOUT waiting for the wallet to sync/index the new record.
-      if (confirmation.recordOutputs?.length && decrypt) {
-        await decryptAndCacheMembership(address, circleId, confirmation.recordOutputs[0], decrypt)
-        console.log('[Contribute] Decrypted & cached fresh membership plaintext')
-      } else if (confirmation.recordOutputs?.length) {
-        setCachedMembership(address, circleId, confirmation.recordOutputs[0])
-        console.log('[Contribute] Cached fresh record ciphertext from TX output')
-      } else {
-        try {
+      // Strategy: store the raw ciphertext FIRST (guaranteed usable for Layer 3
+      // on the next cycle), then ALSO try to decrypt to plaintext+nonce for
+      // the best possible input format.  This way the cache is never empty.
+      try {
+        // Primary: get ciphertext from transaction tracker's parsed outputs
+        let ciphertext: string | null =
+          (confirmation.recordOutputs?.length ? confirmation.recordOutputs[0] : null) ?? null
+
+        // Secondary: fetch directly from chain if tracker didn't capture it
+        if (!ciphertext) {
+          ciphertext = await fetchRecordByIndexFromChain(txId, PROGRAM_ID, 0)
+        }
+
+        if (ciphertext) {
+          // Store raw ciphertext immediately so Layer 3 always has something
+          setCachedMembership(address, circleId, ciphertext)
+          console.log('[Contribute] Step 5: cached raw ciphertext')
+
+          if (decrypt) {
+            // Upgrade to decrypted plaintext (avoids wallet indexing dependency)
+            const plaintext = await decryptAndCacheMembership(address, circleId, ciphertext, decrypt)
+            console.log('[Contribute] Step 5: upgraded to decrypted plaintext, has_nonce=', plaintext.includes('_nonce'))
+          }
+        } else {
+          // Last resort poll
           await new Promise(r => setTimeout(r, 3000))
           const fresh = await pollForMembershipRecord(
             requestRecords as any, decrypt, circleId, () => {}, 'PostContribute', 2
           )
           if (fresh) setCachedMembership(address, circleId, fresh)
-        } catch { /* non-critical */ }
+        }
+      } catch (e) {
+        console.warn('[Contribute] Step 5: cache update failed (non-critical):', e)
       }
 
       try {

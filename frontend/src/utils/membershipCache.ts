@@ -176,9 +176,13 @@ export async function fetchRecordByIndexFromChain(
     if (!res.ok) return null
     const tx = await res.json()
 
+    const transitions: any[] = tx?.execution?.transitions ?? []
+    const programPrefix = programId.replace('.aleo', '')
+
+    // First pass: only our program's transitions
     const records: string[] = []
-    for (const t of (tx?.execution?.transitions ?? [])) {
-      if (!t?.program?.startsWith(programId.replace('.aleo', ''))) continue
+    for (const t of transitions) {
+      if (!t?.program?.startsWith(programPrefix)) continue
       for (const output of t?.outputs ?? []) {
         if (output.type === 'record' && output.value) {
           records.push(output.value as string)
@@ -186,8 +190,27 @@ export async function fetchRecordByIndexFromChain(
       }
     }
     if (records.length > recordIndex) {
-      console.log(`[fetchRecordByIndex] Found record[${recordIndex}] in tx ${txId}`)
+      console.log(`[fetchRecordByIndex] Found record[${recordIndex}] in tx ${txId} (program filter)`)
       return records[recordIndex]
+    }
+
+    // Fallback: collect ALL record outputs (skipping fee/credits transitions)
+    // in case the program field had unexpected formatting
+    const allRecords: string[] = []
+    for (const t of transitions) {
+      // Skip pure credits transitions that are unlikely to be our membership record
+      if (t?.program?.startsWith('credits') && t?.function !== 'contribute') {
+        continue
+      }
+      for (const output of t?.outputs ?? []) {
+        if (output.type === 'record' && output.value) {
+          allRecords.push(output.value as string)
+        }
+      }
+    }
+    if (allRecords.length > recordIndex) {
+      console.log(`[fetchRecordByIndex] Found record[${recordIndex}] in tx ${txId} (fallback, no program filter)`)
+      return allRecords[recordIndex]
     }
     return null
   } catch (e) {

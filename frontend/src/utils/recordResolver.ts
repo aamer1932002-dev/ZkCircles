@@ -121,12 +121,12 @@ export async function resolveCachedRecord(
   cached: string,
   decrypt?: (ct: string) => Promise<any>
 ): Promise<string | null> {
-  // Already good plaintext with _nonce
+  // Plaintext with _nonce — ideal Aleo record format
   if (!cached.startsWith('record1') && cached.includes('_nonce')) {
     return cached
   }
 
-  // Ciphertext — decrypt to get proper plaintext
+  // Ciphertext — try to decrypt to get proper plaintext+nonce
   if (cached.startsWith('record1') && decrypt) {
     try {
       const dec = await decrypt(cached)
@@ -134,21 +134,28 @@ export async function resolveCachedRecord(
         ? dec
         : ((dec as any)?.text ?? String(dec))
       if (typeof decStr === 'string' && decStr.length > 10) {
+        // Return the decrypted string even if it has no _nonce — some wallets
+        // (Shield) accept plaintext without _nonce via commitment re-derivation.
+        // The wallet will reject it properly if it truly can't use it.
         return decStr
       }
     } catch {
-      // Decrypt failed — return ciphertext as fallback
+      // Decrypt threw — return ciphertext and let the wallet try
       return cached
     }
   }
 
-  // Has _nonce but also starts with record1? Edge case — use as-is
-  if (cached.includes('_nonce')) return cached
-
-  // Ciphertext but no decrypt available
+  // Ciphertext but no decrypt available — pass to wallet as-is
   if (cached.startsWith('record1')) return cached
 
-  // Not a valid record input (e.g. JSON string from r.data)
+  // Plaintext WITHOUT _nonce (Shield Wallet sometimes returns this from decrypt).
+  // Use it directly — the wallet can derive the commitment from the field values.
+  // Only discard obvious non-record values (plain JSON with colons/braces, etc.).
+  if (cached.includes('owner') && cached.includes('contribution_amount')) {
+    return cached
+  }
+
+  // Truly unrecognisable — discard
   return null
 }
 
