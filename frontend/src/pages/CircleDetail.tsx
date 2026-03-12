@@ -497,18 +497,22 @@ export default function CircleDetail() {
                   Actions
                 </h3>
 
-                {/* Contribute */}
-                {!hasContributedThisCycle && !isMyTurn && (
+                {/* Contribute — show whenever the member hasn't contributed yet,
+                    including when it's their turn to claim (they must contribute
+                    before they can claim their payout) */}
+                {!hasContributedThisCycle && (
                   <div className="mb-4">
                     <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl mb-4">
                       <div className="flex items-start gap-3">
                         <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
                         <div>
                           <p className="text-sm text-amber-800 font-medium">
-                            Contribution Required
+                            {isMyTurn ? 'Contribute First, Then Claim' : 'Contribution Required'}
                           </p>
                           <p className="text-xs text-amber-700 mt-1">
-                            Contribute {(circle.contributionAmount / 1_000_000).toFixed(3)} ALEO for Cycle {circle.currentCycle}
+                            {isMyTurn
+                              ? `You must also contribute ${(circle.contributionAmount / 1_000_000).toFixed(3)} ALEO for Cycle ${circle.currentCycle} before you can claim your payout.`
+                              : `Contribute ${(circle.contributionAmount / 1_000_000).toFixed(3)} ALEO for Cycle ${circle.currentCycle}`}
                           </p>
                         </div>
                       </div>
@@ -523,7 +527,7 @@ export default function CircleDetail() {
                       ) : (
                         <Coins className="w-5 h-5" />
                       )}
-                      Contribute Now
+                      {isMyTurn ? 'Contribute (Required Before Claiming)' : 'Contribute Now'}
                     </button>
                     
                     {contributeStatus && (
@@ -558,12 +562,18 @@ export default function CircleDetail() {
                         )}
                         <div className="flex-1 min-w-0">
                           <p className={`text-sm font-medium ${allContributedThisCycle ? 'text-forest-800' : 'text-amber-800'}`}>
-                            {allContributedThisCycle ? "It's Your Turn — Ready to Claim!" : 'Waiting for All Contributions'}
+                            {allContributedThisCycle
+                              ? "It's Your Turn — Ready to Claim!"
+                              : !hasContributedThisCycle
+                              ? 'You Need to Contribute Before Claiming'
+                              : 'Waiting for Other Members to Contribute'}
                           </p>
                           <p className={`text-xs mt-1 ${allContributedThisCycle ? 'text-forest-700' : 'text-amber-700'}`}>
                             {allContributedThisCycle
                               ? `Claim your payout of ${potSize.toFixed(3)} ALEO`
-                              : `${contributorsThisCycle} of ${circle.maxMembers} members have contributed for cycle ${circle.currentCycle}. All must contribute before you can claim.`}
+                              : !hasContributedThisCycle
+                              ? `Contribute ${(circle.contributionAmount / 1_000_000).toFixed(3)} ALEO above first, then all ${circle.maxMembers} members must contribute before you can claim.`
+                              : `${contributorsThisCycle} of ${circle.maxMembers} members have contributed for cycle ${circle.currentCycle}. Waiting for the remaining ${circle.maxMembers - contributorsThisCycle} member(s).`}
                           </p>
                           {/* Progress bar */}
                           <div className="mt-2 h-1.5 bg-white/60 rounded-full overflow-hidden">
