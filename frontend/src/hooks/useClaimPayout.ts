@@ -38,12 +38,13 @@ function matchRecord(r: any, circleId: string, bareId: string): string | null {
 
   if (!matched) return null
 
-  // Prefer ciphertext — Shield Wallet decrypts internally, no _nonce required
+  // Return the full plaintext WITH _nonce — Shield Wallet's proof engine
+  // needs the plaintext field values, NOT the ciphertext.
+  if (pt && typeof pt === 'string') return pt
+
+  // Last resort: ciphertext (unlikely to work for executeTransaction)
   const ct: string | undefined = r.ciphertext || r.recordCiphertext
   if (ct && typeof ct === 'string' && ct.startsWith('record1')) return ct
-
-  // Fall back to full plaintext (must include _nonce)
-  if (pt && typeof pt === 'string') return pt
 
   return null
 }
@@ -109,9 +110,9 @@ export function useClaimPayout() {
     try {
       let membershipInput: string | null = null
 
-      // ── Layer 1: cache ───────────────────────────────────────────────────
+      // ── Layer 1: cache ────────────────────────────────────────────
       const cached = getCachedMembership(address, circleId)
-      if (cached && (cached.startsWith('record1') || cached.includes('_nonce'))) {
+      if (cached && cached.includes('_nonce')) {
         console.log('[ClaimPayout] cache hit')
         membershipInput = cached
       } else if (cached) {
@@ -125,17 +126,26 @@ export function useClaimPayout() {
         if (membershipInput) setCachedMembership(address, circleId, membershipInput)
       }
 
-      // ── Layer 3: fetch ciphertext from Aleo testnet ──────────────────────
+      // ── Layer 3: fetch ciphertext from Aleo testnet then decrypt it ────────
       if (!membershipInput) {
         const txId = getJoinTxId(address, circleId)
         if (txId) {
           setTransactionStatus('Fetching record from Aleo testnet…')
           console.log('[ClaimPayout] querying testnet for txId:', txId)
           const ciphertext = await fetchRecordCiphertextFromChain(txId, PROGRAM_ID)
-          if (ciphertext) {
-            console.log('[ClaimPayout] got ciphertext from chain')
-            membershipInput = ciphertext
-            setCachedMembership(address, circleId, ciphertext)
+          if (ciphertext && decrypt) {
+            try {
+              setTransactionStatus('Decrypting record…')
+              const dec = await decrypt(ciphertext)
+              const s = typeof dec === 'string' ? dec : JSON.stringify(dec)
+              if (s && s.includes('contribution_amount')) {
+                console.log('[ClaimPayout] decrypted chain record successfully')
+                membershipInput = s
+                setCachedMembership(address, circleId, s)
+              }
+            } catch (e) {
+              console.warn('[ClaimPayout] failed to decrypt chain ciphertext:', e)
+            }
           }
         }
       }

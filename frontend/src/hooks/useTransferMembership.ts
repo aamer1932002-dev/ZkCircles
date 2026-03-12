@@ -37,12 +37,13 @@ function matchRecord(r: any, circleId: string, bareId: string): string | null {
 
   if (!matched) return null
 
-  // Prefer ciphertext — Shield Wallet decrypts internally, no _nonce required
+  // Return the full plaintext WITH _nonce — Shield Wallet's proof engine
+  // needs the plaintext field values, NOT the ciphertext.
+  if (pt && typeof pt === 'string') return pt
+
+  // Last resort: ciphertext (unlikely to work for executeTransaction)
   const ct: string | undefined = r.ciphertext || r.recordCiphertext
   if (ct && typeof ct === 'string' && ct.startsWith('record1')) return ct
-
-  // Fall back to full plaintext (must include _nonce)
-  if (pt && typeof pt === 'string') return pt
 
   return null
 }
@@ -70,12 +71,11 @@ async function pollWalletRecords(
       if (decrypt) {
         for (const r of records) {
           const ct = r.ciphertext || r.recordCiphertext
-          if (!ct) continue
-          if (typeof ct === 'string' && ct.startsWith('record1')) return ct
+          if (!ct || typeof ct !== 'string') continue
           try {
             const dec = await decrypt(ct)
             const s = typeof dec === 'string' ? dec : JSON.stringify(dec)
-            if (s.includes(circleId) || s.includes(bareId)) return s
+            if ((s.includes(circleId) || s.includes(bareId)) && isMembershipRecord({}, s)) return s
           } catch { /* next */ }
         }
       }
