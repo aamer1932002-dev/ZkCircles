@@ -11,6 +11,7 @@ import {
   resolveCachedRecord,
   pollForMembershipRecord,
 } from '../utils/recordResolver'
+import { trackTransaction } from '../utils/transactionTracker'
 import { PROGRAM_ID, FEE_TRANSFER } from '../config'
 import { isStalePermissionsError, STALE_PERMISSIONS_USER_MSG, dispatchStalePermissionsEvent } from '../utils/walletErrors'
 
@@ -116,10 +117,30 @@ export function useTransferMembership() {
 
       const txId = String((result as any)?.transactionId || result)
       console.log('[Transfer] TX:', txId)
-      setTransactionStatus('Membership transferred!')
-      await new Promise(r => setTimeout(r, 1500))
 
-      // Sender's record is consumed — clear their cache
+      // Track on-chain confirmation
+      const confirmation = await trackTransaction(txId, setTransactionStatus)
+
+      if (confirmation.status === 'rejected') {
+        setIsTransferring(false)
+        setTransactionStatus(null)
+        return {
+          success: false, transactionId: txId,
+          error: `Transfer REJECTED on-chain.\n${confirmation.rejectionReason || 'Finalize failed.'}\nTX: ${txId.slice(0, 24)}…`,
+        }
+      }
+
+      if (confirmation.status === 'timeout') {
+        setIsTransferring(false)
+        setTransactionStatus(null)
+        return {
+          success: false, transactionId: txId,
+          error: `Could not confirm transfer on-chain within timeout. TX: ${txId.slice(0, 24)}…`,
+        }
+      }
+
+      // Accepted — sender's record is consumed
+      setTransactionStatus('Transfer confirmed on-chain!')
       clearCachedMembership(address, circleId)
 
       setIsTransferring(false)

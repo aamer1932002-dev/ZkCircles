@@ -41,7 +41,7 @@ export default function CircleDetail() {
   const { circleId } = useParams<{ circleId: string }>()
   const navigate = useNavigate()
   const { connected, address } = useWallet()
-  const { circle, members, isLoading, fetchCircleDetail } = useCircleDetail()
+  const { circle, members, isLoading, fetchCircleDetail, onChainStatus } = useCircleDetail()
   const { contribute, isContributing, transactionStatus: contributeStatus } = useContribute()
   const { claimPayout, isClaiming, transactionStatus: claimStatus } = useClaimPayout()
   const { transferMembership, isTransferring, transactionStatus: transferStatus } = useTransferMembership()
@@ -71,47 +71,36 @@ export default function CircleDetail() {
 
   const handleContribute = async () => {
     if (!circleId || !connected) return
-    
-    try {
-      const result = await contribute(circleId, circle?.contributionAmount || 0)
-      if (result.success) {
-        toast.success('Contribution successful!')
-        fetchCircleDetail(circleId)
-      }
-    } catch (error) {
-      toast.error('Contribution failed. Please try again.')
+    const result = await contribute(circleId, circle?.contributionAmount || 0)
+    if (result.success) {
+      toast.success('Contribution confirmed on-chain!')
+      fetchCircleDetail(circleId)
+    } else if (result.error) {
+      toast.error(result.error, { duration: 8000 })
     }
   }
 
   const handleClaimPayout = async () => {
     if (!circleId || !connected) return
-    
-    try {
-      const result = await claimPayout(circleId)
-      if (result.success) {
-        toast.success('Payout claimed successfully!')
-        fetchCircleDetail(circleId)
-      }
-    } catch (error) {
-      toast.error('Failed to claim payout. Please try again.')
+    const result = await claimPayout(circleId)
+    if (result.success) {
+      toast.success('Payout confirmed on-chain!')
+      fetchCircleDetail(circleId)
+    } else if (result.error) {
+      toast.error(result.error, { duration: 8000 })
     }
   }
 
   const handleTransferMembership = async () => {
     if (!circleId || !connected || !transferAddress) return
-    
-    try {
-      const result = await transferMembership(circleId, transferAddress)
-      if (result.success) {
-        toast.success('Membership transferred successfully!')
-        setShowTransferModal(false)
-        setTransferAddress('')
-        navigate('/my-circles')
-      } else {
-        toast.error(result.error || 'Transfer failed')
-      }
-    } catch (error) {
-      toast.error('Failed to transfer membership. Please try again.')
+    const result = await transferMembership(circleId, transferAddress)
+    if (result.success) {
+      toast.success('Transfer confirmed on-chain!')
+      setShowTransferModal(false)
+      setTransferAddress('')
+      navigate('/my-circles')
+    } else if (result.error) {
+      toast.error(result.error, { duration: 8000 })
     }
   }
 
@@ -151,17 +140,12 @@ export default function CircleDetail() {
 
   const handleJoinCircle = async () => {
     if (!circleId || !connected) return
-    
-    try {
-      const result = await joinCircle(circleId, circle?.contributionAmount ?? 0)
-      if (result.success) {
-        toast.success('Successfully joined the circle!')
-        fetchCircleDetail(circleId)
-      } else {
-        toast.error(result.error || 'Failed to join circle')
-      }
-    } catch (error) {
-      toast.error('Failed to join circle. Please try again.')
+    const result = await joinCircle(circleId, circle?.contributionAmount ?? 0)
+    if (result.success) {
+      toast.success('Joined circle — confirmed on-chain!')
+      fetchCircleDetail(circleId)
+    } else if (result.error) {
+      toast.error(result.error, { duration: 8000 })
     }
   }
 
@@ -244,6 +228,21 @@ export default function CircleDetail() {
                   {circle.name || `Circle ${circleId?.slice(0, 8)}...`}
                 </h1>
                 <span className={status.color}>{status.label}</span>
+                {onChainStatus === 'synced' && (
+                  <span className="inline-flex items-center gap-1 text-xs text-forest-600 bg-forest-50 px-2 py-1 rounded-full">
+                    <CheckCircle2 className="w-3 h-3" /> On-chain
+                  </span>
+                )}
+                {onChainStatus === 'syncing' && (
+                  <span className="inline-flex items-center gap-1 text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded-full">
+                    <Loader2 className="w-3 h-3 animate-spin" /> Syncing…
+                  </span>
+                )}
+                {onChainStatus === 'unavailable' && (
+                  <span className="inline-flex items-center gap-1 text-xs text-midnight-500 bg-cream-100 px-2 py-1 rounded-full">
+                    Backend only
+                  </span>
+                )}
                 {circleId && <NotificationToggle circleId={circleId} circleName={circle.name || circleId} />}
               </div>
               <p className="text-midnight-600">{status.description}</p>

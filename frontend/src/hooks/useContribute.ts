@@ -12,6 +12,7 @@ import {
   pollForMembershipRecord,
 } from '../utils/recordResolver'
 import { queryCircleOnChain } from '../utils/onChainQuery'
+import { trackTransaction } from '../utils/transactionTracker'
 import { PROGRAM_ID, FEE_CONTRIBUTE } from '../config'
 import { isStalePermissionsError, STALE_PERMISSIONS_USER_MSG, dispatchStalePermissionsEvent } from '../utils/walletErrors'
 
@@ -134,35 +135,48 @@ export function useContribute() {
 
       const txId = String((result as any)?.transactionId || result)
       console.log('[Contribute] TX:', txId)
-      setTransactionStatus('Contribution confirmed on-chain!')
-      await new Promise(r => setTimeout(r, 2000))
 
-      // contribute consumes the old record and issues a fresh one.
-      // Update TX ID so Layer 3 (chain fetch) finds the NEW record.
+      // ── Step 4: Track on-chain confirmation ─────────────────────────────
+      const confirmation = await trackTransaction(txId, setTransactionStatus)
+
+      if (confirmation.status === 'rejected') {
+        clearCachedMembership(address, circleId)
+        setIsContributing(false)
+        setTransactionStatus(null)
+        return {
+          success: false, transactionId: txId,
+          error: `Transaction REJECTED on-chain.\n${confirmation.rejectionReason || 'Finalize failed.'}\nTX: ${txId.slice(0, 24)}…\nFee was still charged.`,
+        }
+      }
+
+      if (confirmation.status === 'timeout') {
+        setIsContributing(false)
+        setTransactionStatus(null)
+        return {
+          success: false, transactionId: txId,
+          error: `Could not confirm on-chain within timeout. TX: ${txId.slice(0, 24)}…\nCheck the Aleo explorer.`,
+        }
+      }
+
+      // ── Step 5: Accepted — update caches & backend ──────────────────────
+      setTransactionStatus('Confirmed on-chain!')
       clearCachedMembership(address, circleId)
       setJoinTxId(address, circleId, txId)
 
-      // Try to pre-cache the fresh membership record for the next cycle.
-      // The wallet may need a moment to index the new output.
-      try {
-        await new Promise(r => setTimeout(r, 3000))
-        const freshRecord = await pollForMembershipRecord(
-          requestRecords as any,
-          decrypt,
-          circleId,
-          () => {},  // silent — don't update UI
-          'PostContribute',
-          2  // just 2 quick attempts
-        )
-        if (freshRecord) {
-          setCachedMembership(address, circleId, freshRecord)
-          console.log('[Contribute] Fresh membership record cached for next cycle')
-        }
-      } catch (e) {
-        console.warn('[Contribute] Could not pre-cache fresh record:', e)
+      // Cache fresh membership record from TX output (ciphertext)
+      if (confirmation.recordOutputs?.length) {
+        setCachedMembership(address, circleId, confirmation.recordOutputs[0])
+        console.log('[Contribute] Cached fresh record from TX output')
+      } else {
+        try {
+          await new Promise(r => setTimeout(r, 3000))
+          const fresh = await pollForMembershipRecord(
+            requestRecords as any, decrypt, circleId, () => {}, 'PostContribute', 2
+          )
+          if (fresh) setCachedMembership(address, circleId, fresh)
+        } catch { /* non-critical */ }
       }
 
-      // ── Step 4: Mirror to backend (non-critical) ────────────────────────
       try {
         await recordContributionBackend({ circleId, memberAddress: address, cycle, amount, transactionId: txId })
       } catch (e) { console.warn('[Contribute] Backend record failed:', e) }

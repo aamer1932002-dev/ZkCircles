@@ -13,6 +13,7 @@ import {
   pollForMembershipRecord,
 } from '../utils/recordResolver'
 import { queryCircleOnChain } from '../utils/onChainQuery'
+import { trackTransaction } from '../utils/transactionTracker'
 import { PROGRAM_ID, FEE_CLAIM } from '../config'
 import { isStalePermissionsError, STALE_PERMISSIONS_USER_MSG, dispatchStalePermissionsEvent } from '../utils/walletErrors'
 
@@ -169,14 +170,34 @@ export function useClaimPayout() {
 
       const txId = String((result as any)?.transactionId || result)
       console.log('[ClaimPayout] TX:', txId)
-      setTransactionStatus('Payout claimed!')
-      await new Promise(r => setTimeout(r, 2000))
 
-      // Membership is consumed by claim_payout — evict the stale cache
+      // Track on-chain confirmation
+      const confirmation = await trackTransaction(txId, setTransactionStatus)
+
+      if (confirmation.status === 'rejected') {
+        setIsClaiming(false)
+        setTransactionStatus(null)
+        return {
+          success: false, transactionId: txId,
+          error: `Payout REJECTED on-chain.\n${confirmation.rejectionReason || 'Finalize failed.'}\nTX: ${txId.slice(0, 24)}…\nFee was still charged.`,
+        }
+      }
+
+      if (confirmation.status === 'timeout') {
+        setIsClaiming(false)
+        setTransactionStatus(null)
+        return {
+          success: false, transactionId: txId,
+          error: `Could not confirm payout on-chain within timeout. TX: ${txId.slice(0, 24)}…\nCheck the Aleo explorer.`,
+        }
+      }
+
+      // Accepted — membership is consumed, evict cache
+      setTransactionStatus('Payout confirmed on-chain!')
       clearCachedMembership(address, circleId)
 
       try {
-        await recordPayoutBackend({ circleId, memberAddress: address, cycle: cycleNumber, amount: 0, transactionId: txId })
+        await recordPayoutBackend({ circleId, memberAddress: address, cycle: cycleNumber, amount: payoutAmount, transactionId: txId })
       } catch (e) { console.warn('[ClaimPayout] backend failed:', e) }
 
       setIsClaiming(false)

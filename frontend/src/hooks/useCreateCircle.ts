@@ -4,6 +4,7 @@ import { generateSalt, hashToField } from '../utils/aleo-utils'
 import { saveCircleToBackend } from '../services/api'
 import { setCachedMembership, setJoinTxId } from '../utils/membershipCache'
 import { isCircleMatch, extractRecordInput } from '../utils/recordResolver'
+import { trackTransaction } from '../utils/transactionTracker'
 import { PROGRAM_ID, FEE_CREATE } from '../config'
 import { isStalePermissionsError, STALE_PERMISSIONS_USER_MSG, dispatchStalePermissionsEvent } from '../utils/walletErrors'
 
@@ -75,17 +76,34 @@ export function useCreateCircle() {
       const txId = String(result?.transactionId || result)
       console.log('[CreateCircle] Transaction ID:', txId)
       setJoinTxId(address, circleId, txId)
-      
-      setTransactionStatus('Transaction submitted to wallet!')
 
-      // Circle ID was computed above before the transaction
-      // Wait a moment for the wallet to process
-      await new Promise(resolve => setTimeout(resolve, 2000))
-      setTransactionStatus('Circle created successfully!')
+      // Track on-chain confirmation
+      const confirmation = await trackTransaction(txId, setTransactionStatus)
 
-      // Attempt to cache the CircleMembership record so contribute/claim
-      // can find it without needing requestRecords to succeed first.
-      if (requestRecords) {
+      if (confirmation.status === 'rejected') {
+        setIsCreating(false)
+        setTransactionStatus(null)
+        return {
+          success: false,
+          error: `Transaction REJECTED on-chain.\n${confirmation.rejectionReason || 'Finalize failed.'}\nTX: ${txId.slice(0, 24)}…`,
+        }
+      }
+
+      if (confirmation.status === 'timeout') {
+        setIsCreating(false)
+        setTransactionStatus(null)
+        return {
+          success: false,
+          error: `Could not confirm on-chain within timeout. TX: ${txId.slice(0, 24)}…\nCheck the Aleo explorer.`,
+        }
+      }
+
+      // Accepted — cache record from TX outputs
+      setTransactionStatus('Circle created on-chain!')
+      if (confirmation.recordOutputs?.length) {
+        setCachedMembership(address, circleId, confirmation.recordOutputs[0])
+        console.log('[CreateCircle] Membership record cached from TX output')
+      } else if (requestRecords) {
         try {
           const records: any[] = (await (requestRecords as any)(PROGRAM_ID, true)) || []
           const bareId = circleId.replace(/field$/i, '')
@@ -94,7 +112,7 @@ export function useCreateCircle() {
             const recordInput = await extractRecordInput(r, decrypt)
             if (recordInput) {
               setCachedMembership(address, circleId, recordInput)
-              console.log('[CreateCircle] Membership record cached')
+              console.log('[CreateCircle] Membership record cached from wallet')
             }
             break
           }
@@ -103,7 +121,7 @@ export function useCreateCircle() {
         }
       }
 
-      // Save to backend for indexing
+      // Save to backend for indexing (only after on-chain acceptance)
       try {
         await saveCircleToBackend({
           circleId,
