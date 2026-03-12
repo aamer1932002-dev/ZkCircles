@@ -38,13 +38,15 @@ function matchRecord(r: any, circleId: string, bareId: string): string | null {
 
   if (!matched) return null
 
-  // Return the full plaintext WITH _nonce — Shield Wallet's proof engine
-  // needs the plaintext field values, NOT the ciphertext.
-  if (pt && typeof pt === 'string') return pt
-
-  // Last resort: ciphertext (unlikely to work for executeTransaction)
+  // Prefer ciphertext — Shield Wallet decrypts internally for ZK proof.
   const ct: string | undefined = r.ciphertext || r.recordCiphertext
   if (ct && typeof ct === 'string' && ct.startsWith('record1')) return ct
+
+  // Fallback: Leo plaintext with _nonce
+  if (pt && typeof pt === 'string' && pt.includes('_nonce')) return pt
+
+  // Last resort: plaintext without _nonce
+  if (pt && typeof pt === 'string') return pt
 
   return null
 }
@@ -72,11 +74,11 @@ async function pollWalletRecords(
       if (decrypt) {
         for (const r of records) {
           const ct = r.ciphertext || r.recordCiphertext
-          if (!ct || typeof ct !== 'string') continue
+          if (!ct || typeof ct !== 'string' || !ct.startsWith('record1')) continue
           try {
             const dec = await decrypt(ct)
             const s = typeof dec === 'string' ? dec : JSON.stringify(dec)
-            if ((s.includes(circleId) || s.includes(bareId)) && isMembershipRecord({}, s)) return s
+            if ((s.includes(circleId) || s.includes(bareId)) && isMembershipRecord({}, s)) return ct // return ciphertext
           } catch { /* next */ }
         }
       }
@@ -112,11 +114,11 @@ export function useClaimPayout() {
 
       // ── Layer 1: cache ────────────────────────────────────────────
       const cached = getCachedMembership(address, circleId)
-      if (cached && cached.includes('_nonce')) {
+      if (cached && (cached.startsWith('record1') || cached.includes('_nonce'))) {
         console.log('[ClaimPayout] cache hit')
         membershipInput = cached
       } else if (cached) {
-        console.warn('[ClaimPayout] Cached record missing _nonce — ignoring, will re-fetch')
+        console.warn('[ClaimPayout] Cached record is not a valid ciphertext/plaintext — ignoring, will re-fetch')
         clearCachedMembership(address, circleId)
       }
 
@@ -126,26 +128,18 @@ export function useClaimPayout() {
         if (membershipInput) setCachedMembership(address, circleId, membershipInput)
       }
 
-      // ── Layer 3: fetch ciphertext from Aleo testnet then decrypt it ────────
+      // ── Layer 3: fetch raw ciphertext from Aleo testnet ──────────────────
       if (!membershipInput) {
         const txId = getJoinTxId(address, circleId)
         if (txId) {
           setTransactionStatus('Fetching record from Aleo testnet…')
           console.log('[ClaimPayout] querying testnet for txId:', txId)
           const ciphertext = await fetchRecordCiphertextFromChain(txId, PROGRAM_ID)
-          if (ciphertext && decrypt) {
-            try {
-              setTransactionStatus('Decrypting record…')
-              const dec = await decrypt(ciphertext)
-              const s = typeof dec === 'string' ? dec : JSON.stringify(dec)
-              if (s && s.includes('contribution_amount')) {
-                console.log('[ClaimPayout] decrypted chain record successfully')
-                membershipInput = s
-                setCachedMembership(address, circleId, s)
-              }
-            } catch (e) {
-              console.warn('[ClaimPayout] failed to decrypt chain ciphertext:', e)
-            }
+          if (ciphertext && ciphertext.startsWith('record1')) {
+            // Use the ciphertext directly — Shield Wallet decrypts it internally
+            console.log('[ClaimPayout] using chain ciphertext directly')
+            membershipInput = ciphertext
+            setCachedMembership(address, circleId, ciphertext)
           }
         }
       }

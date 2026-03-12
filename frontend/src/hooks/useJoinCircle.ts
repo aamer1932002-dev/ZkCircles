@@ -74,13 +74,21 @@ export function useJoinCircle() {
               ? String(r.data.circle_id).replace('.private', '').replace('.public', '')
               : ''
             const pt: string | undefined = r.recordPlaintext || r.plaintext || r.record
+            const ct: string | undefined = r.ciphertext || r.recordCiphertext
+            const isMembership = r.data
+              ? 'contribution_amount' in (r.data as any) && !('cycle' in (r.data as any))
+              : true
             if (
-              ciId === circleId || ciId === bareId ||
-              (pt && (pt.includes(circleId) || pt.includes(bareId)))
+              isMembership &&
+              (ciId === circleId || ciId === bareId ||
+               (pt && (pt.includes(circleId) || pt.includes(bareId))))
             ) {
-              const plaintext = pt || (r.data ? JSON.stringify(r.data) : '')
-              if (plaintext) {
-                setCachedMembership(address, circleId, plaintext)
+              // Prefer ciphertext — Shield Wallet decrypts internally for ZK proof
+              const recordInput = (ct && ct.startsWith('record1'))
+                ? ct
+                : (pt && pt.includes('_nonce') ? pt : null)
+              if (recordInput) {
+                setCachedMembership(address, circleId, recordInput)
                 console.log('[JoinCircle] Membership record cached')
               }
               break
