@@ -82,12 +82,11 @@ async function pollWalletRecords(
       if (decrypt) {
         for (const r of records) {
           const ct = r.ciphertext || r.recordCiphertext
-          if (!ct) continue
-          if (typeof ct === 'string' && ct.startsWith('record1')) return ct
+          if (!ct || typeof ct !== 'string') continue
           try {
             const dec = await decrypt(ct)
             const s = typeof dec === 'string' ? dec : JSON.stringify(dec)
-            if (s.includes(circleId) || s.includes(bareId)) return s
+            if ((s.includes(circleId) || s.includes(bareId)) && isMembershipRecord({}, s)) return s
           } catch { /* next */ }
         }
       }

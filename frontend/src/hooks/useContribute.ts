@@ -5,6 +5,7 @@ import {
   getCachedMembership,
   setCachedMembership,
   clearCachedMembership,
+  setJoinTxId,
 } from '../utils/membershipCache'
 import { PROGRAM_ID, FEE_CONTRIBUTE } from '../config'
 import { isStalePermissionsError, STALE_PERMISSIONS_USER_MSG, dispatchStalePermissionsEvent } from '../utils/walletErrors'
@@ -253,7 +254,10 @@ export function useContribute() {
 
       // contribute consumes the old record and issues a fresh one — evict the
       // stale cache so the next call fetches the new record from the wallet.
+      // Also update the stored TX ID so claimPayout's chain-fetch layer picks
+      // up the NEW membership ciphertext from this contribute TX, not the join TX.
       clearCachedMembership(address, circleId)
+      setJoinTxId(address, circleId, txId)
 
       // ── Step 4: Mirror to backend (non-critical) ────────────────────────
       try {
