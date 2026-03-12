@@ -8,6 +8,7 @@ import {
   setJoinTxId,
   getJoinTxId,
   fetchRecordByIndexFromChain,
+  decryptAndCacheMembership,
 } from '../utils/membershipCache'
 import {
   resolveCachedRecord,
@@ -16,7 +17,7 @@ import {
 import { queryCircleOnChain } from '../utils/onChainQuery'
 import { trackTransaction } from '../utils/transactionTracker'
 import { PROGRAM_ID, FEE_CONTRIBUTE } from '../config'
-import { isStalePermissionsError, STALE_PERMISSIONS_USER_MSG, dispatchStalePermissionsEvent } from '../utils/walletErrors'
+import { isStalePermissionsError, STALE_PERMISSIONS_USER_MSG, dispatchStalePermissionsEvent, isRecordNotFoundError, RECORD_NOT_FOUND_USER_MSG } from '../utils/walletErrors'
 
 const BASE_FEE = FEE_CONTRIBUTE
 
@@ -80,18 +81,24 @@ export function useContribute() {
       //     using the stored TX ID (join or most recent contribute).
       //     contribute emits (CircleMembership, ContributionReceipt, ...) so
       //     the CircleMembership is always record output index 0.
+      //     Immediately decrypt to plaintext+nonce so executeTransaction works
+      //     WITHOUT the wallet having locally indexed the record yet.
       if (!recordInput) {
-        const txId = getJoinTxId(address, circleId)
-        if (txId) {
+        const storedTxId = getJoinTxId(address, circleId)
+        if (storedTxId) {
           setTransactionStatus('Fetching record from Aleo blockchain…')
-          console.log('[Contribute] Layer 3: fetching record[0] from tx', txId)
-          const ciphertext = await fetchRecordByIndexFromChain(txId, PROGRAM_ID, 0)
-          if (ciphertext && ciphertext.startsWith('record1')) {
-            const resolved = await resolveCachedRecord(ciphertext, decrypt)
-            if (resolved) {
-              console.log('[Contribute] Layer 3 success')
-              recordInput = resolved
-              setCachedMembership(address, circleId, resolved)
+          console.log('[Contribute] Layer 3: fetching record[0] from tx', storedTxId)
+          const ciphertext = await fetchRecordByIndexFromChain(storedTxId, PROGRAM_ID, 0)
+          if (ciphertext) {
+            if (decrypt) {
+              // Decrypt immediately → plaintext+nonce works in executeTransaction
+              // even if the wallet hasn't indexed this record yet
+              recordInput = await decryptAndCacheMembership(address, circleId, ciphertext, decrypt)
+              console.log('[Contribute] Layer 3 success (decrypted)')
+            } else {
+              recordInput = ciphertext
+              setCachedMembership(address, circleId, ciphertext)
+              console.log('[Contribute] Layer 3 success (ciphertext, no decrypt available)')
             }
           }
         }
@@ -101,7 +108,12 @@ export function useContribute() {
         setTransactionStatus(null)
         return {
           success: false,
-          error: 'Membership record not found in your wallet. Please wait a moment for the wallet to sync and try again.',
+          error:
+            'Membership record not found.\n\n' +
+            'Your wallet may not have synced the record from the previous transaction yet.\n\n' +
+            '• Open Shield Wallet → tap the sync/refresh icon\n' +
+            '• Wait 30–60 seconds, then try again\n' +
+            '• If the problem persists, disconnect and reconnect your wallet',
         }
       }
 
@@ -180,10 +192,15 @@ export function useContribute() {
       clearCachedMembership(address, circleId)
       setJoinTxId(address, circleId, txId)
 
-      // Cache fresh membership record from TX output (ciphertext)
-      if (confirmation.recordOutputs?.length) {
+      // Decrypt the fresh CircleMembership ciphertext immediately and cache the
+      // plaintext+nonce.  This means cycle N+1 can use Layer 1 (cache) directly
+      // WITHOUT waiting for the wallet to sync/index the new record.
+      if (confirmation.recordOutputs?.length && decrypt) {
+        await decryptAndCacheMembership(address, circleId, confirmation.recordOutputs[0], decrypt)
+        console.log('[Contribute] Decrypted & cached fresh membership plaintext')
+      } else if (confirmation.recordOutputs?.length) {
         setCachedMembership(address, circleId, confirmation.recordOutputs[0])
-        console.log('[Contribute] Cached fresh record from TX output')
+        console.log('[Contribute] Cached fresh record ciphertext from TX output')
       } else {
         try {
           await new Promise(r => setTimeout(r, 3000))
@@ -209,6 +226,11 @@ export function useContribute() {
         setIsContributing(false)
         setTransactionStatus(null)
         return { success: false, error: STALE_PERMISSIONS_USER_MSG }
+      }
+      if (isRecordNotFoundError(msg)) {
+        setIsContributing(false)
+        setTransactionStatus(null)
+        return { success: false, error: RECORD_NOT_FOUND_USER_MSG }
       }
       console.error('Contribute error:', error)
       setIsContributing(false)

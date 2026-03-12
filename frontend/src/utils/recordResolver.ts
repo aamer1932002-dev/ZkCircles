@@ -164,10 +164,11 @@ export async function pollForMembershipRecord(
   circleId: string,
   onStatus: (msg: string) => void,
   tag: string = 'Poll',
-  maxAttempts = 5
+  maxAttempts = 10
 ): Promise<string | null> {
   const bareId = circleId.replace(/field$/i, '')
-  const delays = [0, 2000, 4000, 5000, 5000]
+  // 10 attempts: 0 + 3 + 5 + 7 + 8 + 10 + 10 + 10 + 10 + 10 = ~73 seconds total
+  const delays = [0, 3000, 5000, 7000, 8000, 10000, 10000, 10000, 10000, 10000]
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     if (delays[attempt] > 0) {

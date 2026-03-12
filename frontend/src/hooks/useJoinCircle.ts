@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react'
 import { useWallet } from '@provablehq/aleo-wallet-adaptor-react'
 import { updateCircleMembershipBackend } from '../services/api'
-import { setCachedMembership, setJoinTxId } from '../utils/membershipCache'
+import { setCachedMembership, setJoinTxId, decryptAndCacheMembership } from '../utils/membershipCache'
 import { isCircleMatch, extractRecordInput } from '../utils/recordResolver'
 import { queryCircleOnChain } from '../utils/onChainQuery'
 import { trackTransaction } from '../utils/transactionTracker'
@@ -100,11 +100,16 @@ export function useJoinCircle() {
         }
       }
 
-      // Accepted — cache record & update backend
+      // Accepted — cache record & update backend.
+      // Immediately decrypt the ciphertext so the first contribution can use
+      // the cached plaintext+nonce WITHOUT waiting for wallet record indexing.
       setTransactionStatus('Joined circle — confirmed on-chain!')
-      if (confirmation.recordOutputs?.length) {
+      if (confirmation.recordOutputs?.length && decrypt) {
+        await decryptAndCacheMembership(address, circleId, confirmation.recordOutputs[0], decrypt)
+        console.log('[JoinCircle] Membership plaintext cached from TX output')
+      } else if (confirmation.recordOutputs?.length) {
         setCachedMembership(address, circleId, confirmation.recordOutputs[0])
-        console.log('[JoinCircle] Membership record cached from TX output')
+        console.log('[JoinCircle] Membership ciphertext cached from TX output')
       } else if (requestRecords) {
         try {
           const records: any[] = (await (requestRecords as any)(PROGRAM_ID, true)) || []

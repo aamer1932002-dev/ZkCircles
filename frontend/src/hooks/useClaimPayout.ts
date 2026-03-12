@@ -8,6 +8,7 @@ import {
   getJoinTxId,
   fetchRecordCiphertextFromChain,
   fetchRecordByIndexFromChain,
+  decryptAndCacheMembership,
 } from '../utils/membershipCache'
 import {
   resolveCachedRecord,
@@ -16,7 +17,7 @@ import {
 import { queryCircleOnChain } from '../utils/onChainQuery'
 import { trackTransaction } from '../utils/transactionTracker'
 import { PROGRAM_ID, FEE_CLAIM } from '../config'
-import { isStalePermissionsError, STALE_PERMISSIONS_USER_MSG, dispatchStalePermissionsEvent } from '../utils/walletErrors'
+import { isStalePermissionsError, STALE_PERMISSIONS_USER_MSG, dispatchStalePermissionsEvent, isRecordNotFoundError, RECORD_NOT_FOUND_USER_MSG } from '../utils/walletErrors'
 
 const BASE_FEE = FEE_CLAIM
 
@@ -81,12 +82,14 @@ export function useClaimPayout() {
           const ciphertext =
             (await fetchRecordByIndexFromChain(txId, PROGRAM_ID, 0)) ||
             (await fetchRecordCiphertextFromChain(txId, PROGRAM_ID))
-          if (ciphertext && ciphertext.startsWith('record1')) {
-            const resolved = await resolveCachedRecord(ciphertext, decrypt)
-            if (resolved) {
-              console.log('[ClaimPayout] using chain record (decrypted:', resolved !== ciphertext, ')')
-              membershipInput = resolved
-              setCachedMembership(address, circleId, resolved)
+          if (ciphertext) {
+            if (decrypt) {
+              membershipInput = await decryptAndCacheMembership(address, circleId, ciphertext, decrypt)
+              console.log('[ClaimPayout] Layer 3 success (decrypted)')
+            } else {
+              membershipInput = ciphertext
+              setCachedMembership(address, circleId, ciphertext)
+              console.log('[ClaimPayout] Layer 3 success (ciphertext)')
             }
           }
         }
@@ -217,6 +220,11 @@ export function useClaimPayout() {
         setIsClaiming(false)
         setTransactionStatus(null)
         return { success: false, error: STALE_PERMISSIONS_USER_MSG }
+      }
+      if (isRecordNotFoundError(msg)) {
+        setIsClaiming(false)
+        setTransactionStatus(null)
+        return { success: false, error: RECORD_NOT_FOUND_USER_MSG }
       }
       console.error('ClaimPayout error:', error)
       setIsClaiming(false)

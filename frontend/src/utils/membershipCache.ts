@@ -122,6 +122,42 @@ export async function fetchRecordCiphertextFromChain(
 }
 
 /**
+ * Decrypt a record ciphertext immediately (using the wallet view key) and cache
+ * the resulting plaintext+nonce so the NEXT contribution/claim cycle can use it
+ * WITHOUT waiting for the wallet to index the record.
+ *
+ * Key insight: `decrypt(ciphertext)` only needs the view key — it does NOT
+ * require the record to be in the wallet's local database.  Passing a
+ * plaintext+nonce to `executeTransaction` lets the wallet verify the record
+ * commitment directly against the chain, bypassing the indexing requirement.
+ *
+ * Always returns a non-null string (falls back to the raw ciphertext on error
+ * so callers can still attempt the transaction).
+ */
+export async function decryptAndCacheMembership(
+  address: string,
+  circleId: string,
+  ciphertext: string,
+  decrypt: (ct: string) => Promise<any>
+): Promise<string> {
+  try {
+    const dec = await decrypt(ciphertext)
+    const plaintext: string =
+      typeof dec === 'string' ? dec : ((dec as any)?.text ?? String(dec))
+    if (plaintext && plaintext.length > 10) {
+      setCachedMembership(address, circleId, plaintext)
+      console.log('[Cache] Decrypted & stored plaintext for', circleId.slice(0, 12) + '…')
+      return plaintext
+    }
+  } catch (e) {
+    console.warn('[Cache] decrypt() failed — caching raw ciphertext as fallback:', e)
+  }
+  // Fallback: cache the ciphertext
+  setCachedMembership(address, circleId, ciphertext)
+  return ciphertext
+}
+
+/**
  * For `contribute`, the TX emits (CircleMembership, ContributionReceipt, Future).
  * CircleMembership is the FIRST record output (index 0).
  * ContributionReceipt is the SECOND (index 1).

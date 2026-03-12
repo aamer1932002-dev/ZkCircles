@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react'
 import { useWallet } from '@provablehq/aleo-wallet-adaptor-react'
 import { generateSalt, hashToField } from '../utils/aleo-utils'
 import { saveCircleToBackend } from '../services/api'
-import { setCachedMembership, setJoinTxId } from '../utils/membershipCache'
+import { setCachedMembership, setJoinTxId, decryptAndCacheMembership } from '../utils/membershipCache'
 import { isCircleMatch, extractRecordInput } from '../utils/recordResolver'
 import { trackTransaction } from '../utils/transactionTracker'
 import { PROGRAM_ID, FEE_CREATE } from '../config'
@@ -98,11 +98,16 @@ export function useCreateCircle() {
         }
       }
 
-      // Accepted — cache record from TX outputs
+      // Accepted — cache record from TX outputs.
+      // Immediately decrypt the ciphertext so the first contribution works
+      // WITHOUT waiting for the wallet to index the new record.
       setTransactionStatus('Circle created on-chain!')
-      if (confirmation.recordOutputs?.length) {
-        setCachedMembership(address, circleId, confirmation.recordOutputs[0])
-        console.log('[CreateCircle] Membership record cached from TX output')
+      if (confirmation.recordOutputs?.length && decrypt) {
+        await decryptAndCacheMembership(address, circleId, confirmation.recordOutputs[0], decrypt)
+        console.log('[CreateCircle] Membership plaintext cached from TX output')
+      } else if (confirmation.recordOutputs?.length) {
+        setCachedMembership(address, circleId, confirmation.recordOutputs[0])        
+        console.log('[CreateCircle] Membership ciphertext cached from TX output')
       } else if (requestRecords) {
         try {
           const records: any[] = (await (requestRecords as any)(PROGRAM_ID, true)) || []

@@ -25,3 +25,26 @@ export const STALE_PERMISSIONS_USER_MSG =
 export function dispatchStalePermissionsEvent(): void {
   window.dispatchEvent(new CustomEvent(STALE_PERMISSIONS_EVENT))
 }
+
+/**
+ * When Shield Wallet tries to use a record that isn't in its local index yet
+ * (e.g. the wallet hasn't synced after the previous transaction), executeTransaction
+ * throws an error with one of these phrases.
+ */
+export function isRecordNotFoundError(msg: string): boolean {
+  const lower = msg.toLowerCase()
+  return (
+    lower.includes('record not found') ||
+    lower.includes('record is not in') ||
+    lower.includes('unspent record') ||
+    lower.includes('failed to find record') ||
+    lower.includes('cannot find record') ||
+    lower.includes('record does not exist')
+  )
+}
+
+export const RECORD_NOT_FOUND_USER_MSG =
+  'Your wallet has not yet synced the latest membership record.\n\n' +
+  '• Open Shield Wallet → tap the sync/refresh icon\n' +
+  '• Wait 30–60 seconds, then try again\n' +
+  '• If the issue persists, disconnect and reconnect your wallet'
