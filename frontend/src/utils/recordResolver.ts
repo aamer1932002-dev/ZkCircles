@@ -194,9 +194,15 @@ export async function pollForMembershipRecord(
         })
       }
 
-      // Pass 1: unspent only
+      // Only use unspent records. Using a spent record causes
+      // "input ID already exists" because the record was already consumed.
       for (const r of records) {
-        if (r.spent) continue
+        if (r.spent) {
+          if (isCircleMatch(r, circleId, bareId)) {
+            console.log(`[${tag}] Skipping SPENT record for circle ${bareId} (attempt ${attempt + 1})`)
+          }
+          continue
+        }
         if (!isCircleMatch(r, circleId, bareId)) continue
         const input = await extractRecordInput(r, decrypt)
         if (input) {
@@ -204,17 +210,6 @@ export async function pollForMembershipRecord(
             ? 'ciphertext'
             : input.includes('_nonce') ? 'plaintext+nonce' : 'bare-plaintext'
           console.log(`[${tag}] Match (unspent, attempt ${attempt + 1}) [${fmt}]`)
-          return input
-        }
-      }
-
-      // Pass 2: include spent (Shield may mark records spent prematurely)
-      for (const r of records) {
-        if (!r.spent) continue // already checked above
-        if (!isCircleMatch(r, circleId, bareId)) continue
-        const input = await extractRecordInput(r, decrypt)
-        if (input) {
-          console.log(`[${tag}] Match (spent, attempt ${attempt + 1})`)
           return input
         }
       }

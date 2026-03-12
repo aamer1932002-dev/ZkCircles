@@ -117,12 +117,30 @@ export function useContribute() {
       setTransactionStatus('Contribution confirmed on-chain!')
       await new Promise(r => setTimeout(r, 2000))
 
-      // contribute consumes the old record and issues a fresh one — evict the
-      // stale cache so the next call fetches the new record from the wallet.
-      // Also update the stored TX ID so claimPayout's chain-fetch layer picks
-      // up the NEW membership ciphertext from this contribute TX, not the join TX.
+      // contribute consumes the old record and issues a fresh one.
+      // Update TX ID so Layer 3 (chain fetch) finds the NEW record.
       clearCachedMembership(address, circleId)
       setJoinTxId(address, circleId, txId)
+
+      // Try to pre-cache the fresh membership record for the next cycle.
+      // The wallet may need a moment to index the new output.
+      try {
+        await new Promise(r => setTimeout(r, 3000))
+        const freshRecord = await pollForMembershipRecord(
+          requestRecords as any,
+          decrypt,
+          circleId,
+          () => {},  // silent — don't update UI
+          'PostContribute',
+          2  // just 2 quick attempts
+        )
+        if (freshRecord) {
+          setCachedMembership(address, circleId, freshRecord)
+          console.log('[Contribute] Fresh membership record cached for next cycle')
+        }
+      } catch (e) {
+        console.warn('[Contribute] Could not pre-cache fresh record:', e)
+      }
 
       // ── Step 4: Mirror to backend (non-critical) ────────────────────────
       try {
