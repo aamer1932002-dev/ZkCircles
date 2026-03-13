@@ -2,10 +2,19 @@
 // Member addresses are never stored in plain text; all mapping keys are BHP256 hashes.
 // Contributions move real credits via transfer_public_as_signer to the PROGRAM'S OWN
 // address so claim_payout can call transfer_public back to the winner atomically.
+//
+// v7 additions:
+//   - defaults mapping          — tracks how many cycles each member has missed
+//   - default_flags mapping     — prevents double-flagging the same defaulter/cycle
+//   - flag_missed_contribution  — any member can flag a past-cycle non-contributor
+//   - Variable contribution note: weights are stored off-chain per slot in the backend;
+//     the contract enforces a uniform contribution_amount per circle to keep on-chain
+//     logic simple.  Weighted circles are planned for v8 via per-member contribution
+//     records stored at join time.
 
 import credits.aleo;
 
-program zk_circles_v6.aleo {
+program zk_circles_v7.aleo {
 
     // circle status values
     // 0 = forming   (accepting members)
@@ -34,6 +43,13 @@ program zk_circles_v6.aleo {
         member_addr: address
     }
 
+    // Used to key the defaults and default_flags mappings
+    struct DefaultKey {
+        circle_id: field,
+        defaulter: address,
+        cycle: u8
+    }
+
     // Private records — encrypted for the owner's key only
     record CircleMembership {
         owner: address,
@@ -60,6 +76,10 @@ program zk_circles_v6.aleo {
     mapping circles: field => CircleInfo;
     mapping members: field => u8;
     mapping contributions: field => bool;
+    // hash(circle_id, defaulter) -> total missed-cycle count for that member
+    mapping defaults: field => u8;
+    // hash(circle_id, defaulter, cycle) -> true once flagged (prevents duplicate flags)
+    mapping default_flags: field => bool;
 
     @noupgrade
     async constructor() {}
@@ -300,5 +320,54 @@ program zk_circles_v6.aleo {
     async function finalize_verify_membership(circle_id: field, member_addr: address) {
         let key: field = BHP256::hash_to_field(MemberKey { circle_id: circle_id, member_addr: member_addr });
         assert(members.contains(key));
+    }
+
+    // Any member can flag another member who failed to contribute in a completed cycle.
+    // Caller proves their own membership by passing their CircleMembership record.
+    // The flagged cycle must have already passed (current_cycle > cycle).
+    // Each (defaulter, cycle) pair can only be flagged once.
+    // Cumulative default count for the defaulter is incremented in the defaults mapping.
+    async transition flag_missed_contribution(
+        membership: CircleMembership,
+        public defaulter: address,
+        public cycle: u8
+    ) -> (CircleMembership, Future) {
+        assert_neq(self.signer, defaulter);
+        return (membership, finalize_flag_missed(membership.circle_id, defaulter, cycle, self.signer));
+    }
+
+    async function finalize_flag_missed(
+        circle_id: field,
+        defaulter: address,
+        cycle: u8,
+        reporter: address
+    ) {
+        let info: CircleInfo = circles.get(circle_id);
+        assert_eq(info.status, 1u8);
+
+        // The cycle must already be in the past
+        assert(info.current_cycle > cycle);
+
+        // Reporter must be an active member
+        let reporter_key: field = BHP256::hash_to_field(MemberKey { circle_id: circle_id, member_addr: reporter });
+        assert(members.contains(reporter_key));
+
+        // Defaulter must be (or have been) a member
+        let defaulter_key: field = BHP256::hash_to_field(MemberKey { circle_id: circle_id, member_addr: defaulter });
+        assert(members.contains(defaulter_key));
+
+        // Verify the defaulter genuinely did NOT contribute that cycle
+        let contrib_key: field = BHP256::hash_to_field(ContribKey { circle_id: circle_id, cycle: cycle, member_addr: defaulter });
+        assert(!contributions.get_or_use(contrib_key, false));
+
+        // Prevent duplicate flags for the same (defaulter, cycle) pair
+        let flag_key: field = BHP256::hash_to_field(DefaultKey { circle_id: circle_id, defaulter: defaulter, cycle: cycle });
+        assert(!default_flags.get_or_use(flag_key, false));
+        default_flags.set(flag_key, true);
+
+        // Increment the cumulative default count for this member
+        let member_default_key: field = BHP256::hash_to_field(MemberKey { circle_id: circle_id, member_addr: defaulter });
+        let count: u8 = defaults.get_or_use(member_default_key, 0u8);
+        defaults.set(member_default_key, count + 1u8);
     }
 }

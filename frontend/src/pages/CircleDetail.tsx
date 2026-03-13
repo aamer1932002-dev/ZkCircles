@@ -19,13 +19,15 @@ import {
   X,
   UserPlus,
   Trash2,
-  BarChart2
+  BarChart2,
+  Flag,
 } from 'lucide-react'
 import { useCircleDetail } from '../hooks/useCircleDetail'
 import { useContribute } from '../hooks/useContribute'
 import { useClaimPayout } from '../hooks/useClaimPayout'
 import { useTransferMembership } from '../hooks/useTransferMembership'
 import { useVerifyMembership } from '../hooks/useVerifyMembership'
+import { useDisputeResolution } from '../hooks/useDisputeResolution'
 import { useJoinCircle } from '../hooks/useJoinCircle'
 import { dissolveCircle } from '../services/api'
 import NotificationBanner, { NotificationToggle } from '../components/NotificationBanner'
@@ -47,6 +49,7 @@ export default function CircleDetail() {
   const { claimPayout, isClaiming, transactionStatus: claimStatus } = useClaimPayout()
   const { transferMembership, isTransferring, transactionStatus: transferStatus } = useTransferMembership()
   const { verifyMembership, isVerifying } = useVerifyMembership()
+  const { flagMissedContribution, isFlagging } = useDisputeResolution()
   const { joinCircle, isJoining, transactionStatus: joinStatus } = useJoinCircle()
   const { notifyPayoutTurn, notifyContributionDue, notifyCircleFull, isCircleEnabled } = useNotifications()
   const notifiedRef = useRef<Set<string>>(new Set())
@@ -57,6 +60,7 @@ export default function CircleDetail() {
   const [membershipVerified, setMembershipVerified] = useState<boolean | null>(null)
   const [showDissolveModal, setShowDissolveModal] = useState(false)
   const [isDissolving, setIsDissolving] = useState(false)
+  const [disputeTarget, setDisputeTarget] = useState<{ address: string; cycle: number } | null>(null)
 
   useEffect(() => {
     if (circleId) {
@@ -152,6 +156,19 @@ export default function CircleDetail() {
     }
   }
 
+  const handleFlagMissed = async (defaulterAddress: string, cycle: number) => {
+    if (!circleId || !connected) return
+    // The caller's membership record must be passed; requestRecords is not available here
+    // so we pass a placeholder — the wallet will prompt the user to select the correct record
+    const result = await flagMissedContribution('', defaulterAddress, cycle)
+    if (result.success) {
+      toast.success(`Missed payment flagged on-chain! TX: ${result.transactionId?.slice(0, 12)}...`)
+      setDisputeTarget(null)
+    } else {
+      toast.error(result.error || 'Failed to flag missed payment')
+    }
+  }
+
   const handleJoinCircle = async () => {
     if (!circleId || !connected) return
     const willBeFull = circle && (circle.membersJoined + 1 >= circle.maxMembers)
@@ -231,6 +248,24 @@ export default function CircleDetail() {
   const allContributedThisCycle = circle.status === 1 && contributorsThisCycle >= circle.maxMembers
   const potSize = (circle.contributionAmount * circle.maxMembers) / 1_000_000
   const progress = circle.status === 1 ? (circle.currentCycle / circle.totalCycles) * 100 : 0
+
+  // Members who have missed at least one past cycle — shown in the dispute panel
+  const membersWithMissedCycles = circle.status === 1 && circle.currentCycle > 1
+    ? members.filter(m => {
+        if (m.address === address) return false // don't flag yourself
+        const missedCycles: number[] = []
+        for (let c = 1; c < circle.currentCycle; c++) {
+          if (!m.contributedCycles?.includes(c)) missedCycles.push(c)
+        }
+        return missedCycles.length > 0
+      }).map(m => {
+        const missed: number[] = []
+        for (let c = 1; c < circle.currentCycle; c++) {
+          if (!m.contributedCycles?.includes(c)) missed.push(c)
+        }
+        return { ...m, missedCycles: missed }
+      })
+    : []
 
   return (
     <div className="min-h-screen bg-cream-50 py-12 md:py-20">
@@ -660,6 +695,54 @@ export default function CircleDetail() {
                     <ArrowRightLeft className="w-4 h-4" />
                     Transfer Membership
                   </button>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Dispute Resolution Panel — only visible when there are flaggable missed payments */}
+            {isMember && membersWithMissedCycles.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.48 }}
+                className="card border border-terra-200 bg-terra-50"
+              >
+                <div className="flex items-center gap-2 mb-4">
+                  <Flag className="w-5 h-5 text-terra-600" />
+                  <h3 className="font-display text-base font-semibold text-terra-800">
+                    Missed Payments
+                  </h3>
+                </div>
+                <p className="text-xs text-terra-700 mb-4">
+                  The following members skipped at least one cycle. You can flag missed payments on-chain — this creates a permanent verifiable record and increments the defaulter's on-chain counter.
+                </p>
+                <div className="space-y-3">
+                  {membersWithMissedCycles.map(m => (
+                    <div key={m.address} className="p-3 rounded-xl bg-white border border-terra-200">
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <p className="font-mono text-xs text-midnight-700 break-all">
+                          {m.address.slice(0, 14)}…{m.address.slice(-6)}
+                        </p>
+                        <span className="shrink-0 text-xs font-bold text-terra-600 bg-terra-100 px-2 py-0.5 rounded-full">
+                          {m.missedCycles.length} missed
+                        </span>
+                      </div>
+                      <p className="text-xs text-midnight-500 mb-3">
+                        Cycles: {m.missedCycles.join(', ')}
+                      </p>
+                      {m.missedCycles.map(cycle => (
+                        <button
+                          key={cycle}
+                          onClick={() => handleFlagMissed(m.address, cycle)}
+                          disabled={isFlagging}
+                          className="mr-2 mb-1 inline-flex items-center gap-1 px-3 py-1 text-xs font-medium bg-terra-100 hover:bg-terra-200 text-terra-700 rounded-lg transition-colors disabled:opacity-50"
+                        >
+                          {isFlagging ? <Loader2 className="w-3 h-3 animate-spin" /> : <Flag className="w-3 h-3" />}
+                          Flag cycle {cycle}
+                        </button>
+                      ))}
+                    </div>
+                  ))}
                 </div>
               </motion.div>
             )}

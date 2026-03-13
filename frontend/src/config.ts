@@ -8,7 +8,9 @@
  */
 
 // ── Deployed contract ────────────────────────────────────────────────────────
-// Deployment TX: at1z5rendz2gtpeq7u2ldsnmy8mrcvlxasn373n9j5j54v8t32lxcrsq7u7wh
+// v6 Deployment TX: at1z5rendz2gtpeq7u2ldsnmy8mrcvlxasn373n9j5j54v8t32lxcrsq7u7wh
+// v7 adds: flag_missed_contribution, defaults mapping, default_flags mapping
+// Switch PROGRAM_ID to zk_circles_v7.aleo after deploying v7 to testnet
 export const PROGRAM_ID =
   (import.meta.env.VITE_PROGRAM_ID as string) || 'zk_circles_v6.aleo'
 
@@ -23,3 +25,4 @@ export const FEE_CREATE       = 1_000_000   // 1 ALEO
 export const FEE_JOIN         = 1_000_000   // 1 ALEO
 export const FEE_TRANSFER     =   500_000   // 0.5 ALEO
 export const FEE_VERIFY       =   300_000   // 0.3 ALEO
+export const FEE_DISPUTE      =   300_000   // 0.3 ALEO  (flag_missed_contribution)

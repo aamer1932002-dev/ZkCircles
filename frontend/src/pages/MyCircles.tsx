@@ -11,7 +11,8 @@ import {
   Loader2,
   Circle,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Zap,
 } from 'lucide-react'
 import { useMyCircles } from '../hooks/useMyCircles'
 
@@ -31,6 +32,10 @@ export default function MyCircles() {
       fetchMyCircles()
     }
   }, [connected, address, fetchMyCircles])
+
+  const urgentActions = circles.filter(c => c.status === 1 && (c.isYourTurn || c.needsContribution))
+  const claimReady    = urgentActions.filter(c => c.isYourTurn)
+  const contributeNow = urgentActions.filter(c => !c.isYourTurn && c.needsContribution)
 
   if (!connected) {
     return (
@@ -76,6 +81,68 @@ export default function MyCircles() {
             Create Circle
           </Link>
         </motion.div>
+
+        {/* Priority Actions — shown when any circle needs immediate attention */}
+        {urgentActions.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.05 }}
+            className="mb-8"
+          >
+            <div className="flex items-center gap-2 mb-3">
+              <Zap className="w-5 h-5 text-amber-500" />
+              <h2 className="font-display text-lg font-semibold text-midnight-900">
+                Needs Your Attention
+              </h2>
+              <span className="ml-1 px-2 py-0.5 text-xs font-bold bg-amber-100 text-amber-700 rounded-full">
+                {urgentActions.length}
+              </span>
+            </div>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {claimReady.map(circle => (
+                <Link
+                  key={circle.id}
+                  to={`/circle/${circle.id}`}
+                  className="flex items-center gap-3 p-4 rounded-2xl border-2 border-forest-400 bg-forest-50 hover:bg-forest-100 transition-colors"
+                >
+                  <div className="w-10 h-10 rounded-full bg-forest-500 flex items-center justify-center shrink-0">
+                    <CheckCircle2 className="w-5 h-5 text-white" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-forest-800 truncate text-sm">
+                      {circle.name || `Circle ${circle.id.slice(0, 8)}…`}
+                    </p>
+                    <p className="text-xs text-forest-600">
+                      Claim payout — {((circle.contributionAmount * circle.maxMembers) / 1_000_000).toFixed(2)} ALEO ready
+                    </p>
+                  </div>
+                  <ArrowRight className="w-4 h-4 text-forest-500 ml-auto shrink-0" />
+                </Link>
+              ))}
+              {contributeNow.map(circle => (
+                <Link
+                  key={circle.id}
+                  to={`/circle/${circle.id}`}
+                  className="flex items-center gap-3 p-4 rounded-2xl border-2 border-terra-400 bg-terra-50 hover:bg-terra-100 transition-colors"
+                >
+                  <div className="w-10 h-10 rounded-full bg-terra-500 flex items-center justify-center shrink-0">
+                    <AlertCircle className="w-5 h-5 text-white" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-terra-800 truncate text-sm">
+                      {circle.name || `Circle ${circle.id.slice(0, 8)}…`}
+                    </p>
+                    <p className="text-xs text-terra-600">
+                      Contribute {(circle.contributionAmount / 1_000_000).toFixed(3)} ALEO · Cycle {circle.currentCycle}
+                    </p>
+                  </div>
+                  <ArrowRight className="w-4 h-4 text-terra-500 ml-auto shrink-0" />
+                </Link>
+              ))}
+            </div>
+          </motion.div>
+        )}
 
         {/* Stats Overview */}
         {circles.length > 0 && (
