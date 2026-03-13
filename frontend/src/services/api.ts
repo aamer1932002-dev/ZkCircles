@@ -368,6 +368,29 @@ export async function updateCircleMembershipBackend(data: {
 }
 
 /**
+ * Notify backend of an on-chain membership transfer
+ */
+export async function transferMemberBackend(data: {
+  circleId: string
+  oldAddress: string
+  newAddress: string
+  transactionId: string
+}): Promise<void> {
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/circles/${data.circleId}/members/transfer`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
+    if (!response.ok) {
+      console.warn('Backend transfer sync failed:', response.statusText)
+    }
+  } catch (error) {
+    console.warn('Backend transfer sync error (non-critical):', error)
+  }
+}
+
+/**
  * Record a contribution
  */
 export async function recordContributionBackend(data: {

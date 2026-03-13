@@ -153,7 +153,7 @@ export default function CircleDetail() {
       toast.success('Transfer confirmed on-chain!')
       setShowTransferModal(false)
       setTransferAddress('')
-      navigate('/my-circles')
+      fetchCircleDetail(circleId)
     } else if (result.error) {
       toast.error(result.error, { duration: 8000 })
     }

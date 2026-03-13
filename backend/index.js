@@ -731,6 +731,59 @@ app.post('/api/circles/:circleId/members', async (req, res) => {
   }
 })
 
+/**
+ * PUT /api/circles/:circleId/members/transfer
+ * Update member address after an on-chain transfer_membership transaction
+ */
+app.put('/api/circles/:circleId/members/transfer', async (req, res) => {
+  try {
+    const { circleId } = req.params
+    const { oldAddress, newAddress, transactionId } = req.body
+
+    if (!oldAddress || !newAddress) {
+      return res.status(400).json({ error: 'oldAddress and newAddress are required' })
+    }
+
+    if (USE_MOCK) {
+      const idx = (mockData.members || []).findIndex(m => m.circle_id === circleId && m.member_address === oldAddress)
+      if (idx >= 0) mockData.members[idx].member_address = newAddress
+      return res.json({ success: true })
+    }
+
+    // Find the member row by decrypting each address for this circle (AES-GCM random IV)
+    const { data: allMembers, error: fetchError } = await supabase
+      .from('members')
+      .select('id, member_address')
+      .eq('circle_id', circleId)
+
+    if (fetchError) throw fetchError
+
+    let memberId = null
+    for (const m of (allMembers || [])) {
+      try {
+        if (decrypt(m.member_address) === oldAddress) { memberId = m.id; break }
+      } catch { /* skip unreadable rows */ }
+    }
+
+    if (!memberId) {
+      return res.status(404).json({ error: 'Member not found in this circle' })
+    }
+
+    const { error: updateError } = await supabase
+      .from('members')
+      .update({ member_address: encrypt(newAddress) })
+      .eq('id', memberId)
+
+    if (updateError) throw updateError
+
+    console.log(`[Transfer] circle ${circleId}: ${oldAddress.slice(0, 10)}… → ${newAddress.slice(0, 10)}… tx:${transactionId}`)
+    res.json({ success: true })
+  } catch (error) {
+    console.error('Error transferring membership:', error)
+    res.status(500).json({ error: 'Failed to transfer membership' })
+  }
+})
+
 // ==================== CONTRIBUTIONS ENDPOINTS ====================
 
 /**
@@ -839,7 +892,7 @@ app.get('/api/circles/:circleId/analytics', async (req, res) => {
       .single()
     if (circleErr || !circle) return res.status(404).json({ error: 'Circle not found' })
 
-    const { data: members } = await supabase.from('circle_members').select('*').eq('circle_id', circleId)
+    const { data: members } = await supabase.from('members').select('*').eq('circle_id', circleId)
     const { data: contributions } = await supabase.from('contributions').select('*').eq('circle_id', circleId)
     const { data: payouts } = await supabase.from('payouts').select('*').eq('circle_id', circleId)
 
@@ -1440,17 +1493,41 @@ app.post('/api/schedules', async (req, res) => {
 
     const encryptedAddress = encrypt(memberAddress)
 
-    // Upsert schedule
-    const { error } = await supabase
+    // Find existing schedule for this circle+member (decrypt each row to compare,
+    // since member_address is AES-GCM encrypted with a random IV each time)
+    const { data: existing, error: fetchError } = await supabase
       .from('contribution_schedules')
-      .upsert({
-        circle_id: circleId,
-        member_address: encryptedAddress,
-        enabled,
-        notify_before_minutes: notifyBeforeMinutes,
-      }, { onConflict: 'circle_id,member_address' })
+      .select('id, member_address')
+      .eq('circle_id', circleId)
 
-    if (error) throw error
+    if (fetchError) throw fetchError
+
+    let existingId = null
+    for (const row of (existing || [])) {
+      try {
+        if (decrypt(row.member_address) === memberAddress) { existingId = row.id; break }
+      } catch { /* skip unreadable rows */ }
+    }
+
+    if (existingId) {
+      const { error } = await supabase
+        .from('contribution_schedules')
+        .update({ enabled, notify_before_minutes: notifyBeforeMinutes })
+        .eq('id', existingId)
+      if (error) throw error
+    } else {
+      const { error } = await supabase
+        .from('contribution_schedules')
+        .insert({
+          circle_id: circleId,
+          member_address: encryptedAddress,
+          enabled,
+          notify_before_minutes: notifyBeforeMinutes,
+          last_notified_cycle: 0,
+        })
+      if (error) throw error
+    }
+
     res.json({ success: true })
   } catch (error) {
     console.error('Error saving schedule:', error)

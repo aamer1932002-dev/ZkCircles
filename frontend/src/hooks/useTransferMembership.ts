@@ -14,6 +14,7 @@ import {
 import { trackTransaction } from '../utils/transactionTracker'
 import { PROGRAM_ID, FEE_TRANSFER } from '../config'
 import { isStalePermissionsError, STALE_PERMISSIONS_USER_MSG, dispatchStalePermissionsEvent } from '../utils/walletErrors'
+import { transferMemberBackend } from '../services/api'
 
 const BASE_FEE = FEE_TRANSFER
 
@@ -142,6 +143,10 @@ export function useTransferMembership() {
       // Accepted — sender's record is consumed
       setTransactionStatus('Transfer confirmed on-chain!')
       clearCachedMembership(address, circleId)
+
+      // Sync the new owner address to the backend DB (best-effort, non-blocking)
+      transferMemberBackend({ circleId, oldAddress: address, newAddress: newOwnerAddress, transactionId: txId })
+        .catch(e => console.warn('[Transfer] backend sync error:', e))
 
       setIsTransferring(false)
       setTransactionStatus(null)
