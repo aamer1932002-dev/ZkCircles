@@ -116,7 +116,7 @@ export default function VerifyIdentity() {
             <Shield className="w-12 h-12 text-midnight-300 mx-auto mb-4" />
             <p className="text-midnight-600">Connect your wallet to verify your identity.</p>
           </div>
-        ) : !status?.verified && (
+        ) : (step === 'done' || !status?.verified) && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}

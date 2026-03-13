@@ -76,13 +76,24 @@ export function useAnalytics() {
             healthScore: raw.healthScore ?? 0,
             totalVolumeContributed: raw.totalVolumeContributed ?? raw.totalContributed ?? 0,
             totalVolumePaid: raw.totalVolumePaid ?? raw.totalPaidOut ?? 0,
-            cycleData: (raw.cycleData ?? raw.cycleHistory ?? []).map((c: any) => ({
-              cycle: c.cycle,
-              label: c.label ?? `Cycle ${c.cycle}`,
-              totalContributed: c.totalContributed ?? c.actual ?? 0,
-              expectedAmount: c.expectedAmount ?? c.expected ?? 0,
-              completionRate: c.completionRate ?? 0,
-            })),
+            cycleData: (raw.cycleData ?? raw.cycleHistory ?? []).map((c: any) => {
+              const cycleNum = c.cycle
+              const totalContributed = c.totalContributed ?? c.actual ?? 0
+              const expectedAmount = c.expectedAmount ?? c.expected ?? 0
+              let completionRate = c.completionRate ?? 0
+              // Force 100% for definitively completed cycles
+              if (completionRate === 0 && cycleNum <= completedCycles) completionRate = 100
+              // Derive from amounts for the active cycle
+              if (completionRate === 0 && expectedAmount > 0 && totalContributed > 0)
+                completionRate = Math.min(100, Math.round((totalContributed / expectedAmount) * 100))
+              return {
+                cycle: cycleNum,
+                label: c.label ?? `Cycle ${cycleNum}`,
+                totalContributed,
+                expectedAmount,
+                completionRate,
+              }
+            }),
             memberContributions: (raw.memberContributions ?? []).map((m: any) => ({
               address: m.address,
               shortAddress: m.shortAddress ?? `${m.address.slice(0, 8)}...${m.address.slice(-6)}`,
