@@ -1537,6 +1537,20 @@ app.get('/api/schedules/pending-notifications', async (req, res) => {
  * POST /api/email/register
  * Register an email commitment (step 1: user commits email_hash)
  */
+// Helper: find the newest email_verifications row for a given plaintext address
+async function findEntryByAddress(address) {
+  const { data: allEntries } = await supabase
+    .from('email_verifications')
+    .select('*')
+    .order('created_at', { ascending: false })
+  for (const entry of (allEntries || [])) {
+    try {
+      if (entry.address && decrypt(entry.address) === address) return entry
+    } catch { /* skip */ }
+  }
+  return null
+}
+
 app.post('/api/email/register', async (req, res) => {
   try {
     const { address, emailHash, transactionId, email } = req.body
@@ -1547,34 +1561,52 @@ app.post('/api/email/register', async (req, res) => {
 
     if (USE_MOCK) {
       if (!mockData.emailVerifications) mockData.emailVerifications = []
-      mockData.emailVerifications.push({ address, emailHash, email: email || null, status: 0, transactionId })
+      const existing = mockData.emailVerifications.find(e => e.address === address)
+      if (existing) {
+        existing.emailHash = emailHash
+        existing.email = email || null
+        existing.status = Math.min(existing.status, 1)
+      } else {
+        mockData.emailVerifications.push({ address, emailHash, email: email || null, status: 0, transactionId })
+      }
       return res.json({ success: true })
     }
 
-    const upsertData = {
-      address: encrypt(address),
+    // Find existing row first — encrypt() uses random IV so UNIQUE constraint is unreliable
+    const existing = await findEntryByAddress(address)
+
+    const updateData = {
       email_hash: emailHash,
-      status: 0,
       on_chain_tx: transactionId,
       expires_at: new Date(Date.now() + 24 * 3600000).toISOString(),
     }
-    // Store encrypted email if provided (for sending verification codes)
     if (email) {
-      upsertData.email = encrypt(email)
+      try { updateData.email = encrypt(email) } catch { /* skip if encrypt fails */ }
     }
 
-    const { error } = await supabase.from('email_verifications').upsert(upsertData, { onConflict: 'address' })
-
-    if (error) {
-      // If the email column doesn't exist yet, retry without it
-      if (email && (error.message?.includes('email') || error.code === '42703')) {
-        delete upsertData.email
-        const { error: error2 } = await supabase.from('email_verifications').upsert(upsertData, { onConflict: 'address' })
-        if (error2) throw error2
-      } else {
-        throw error
+    if (existing) {
+      // Update existing row — never create duplicates
+      const { error } = await supabase
+        .from('email_verifications')
+        .update(updateData)
+        .eq('id', existing.id)
+      if (error) throw error
+    } else {
+      // Insert new row
+      const insertData = { ...updateData, address: encrypt(address), status: 0 }
+      const { error } = await supabase.from('email_verifications').insert(insertData)
+      if (error) {
+        // Retry without email column if it doesn't exist yet
+        if (email && (error.message?.includes('email') || error.code === '42703')) {
+          delete insertData.email
+          const { error: e2 } = await supabase.from('email_verifications').insert(insertData)
+          if (e2) throw e2
+        } else {
+          throw error
+        }
       }
     }
+
     res.json({ success: true })
   } catch (error) {
     console.error('Error registering email:', error)
@@ -1605,30 +1637,23 @@ app.post('/api/email/send-code', async (req, res) => {
       return res.json({ success: true, codeSent: true, testCode: code })
     }
 
-    // Find the user's entry
-    const { data: allEntries } = await supabase
-      .from('email_verifications')
-      .select('*')
-
-    let targetEntry = null
-    for (const entry of (allEntries || [])) {
-      try {
-        if (decrypt(entry.address) === address) {
-          targetEntry = entry
-          break
-        }
-      } catch { /* skip */ }
-    }
+    // Find the user's entry (newest row wins)
+    const targetEntry = await findEntryByAddress(address)
 
     if (!targetEntry) {
       return res.status(404).json({ error: 'No email commitment found. Register first.' })
     }
 
-    await supabase.from('email_verifications').update({
+    const { error: updateError } = await supabase.from('email_verifications').update({
       verification_code_hash: codeHash,
       status: 1,
-      expires_at: new Date(Date.now() + 30 * 60000).toISOString(), // 30 min expiry
+      expires_at: new Date(Date.now() + 30 * 60000).toISOString(),
     }).eq('id', targetEntry.id)
+
+    if (updateError) {
+      console.error('Failed to store code hash:', updateError)
+      return res.status(500).json({ error: 'Failed to generate verification code' })
+    }
 
     // Attempt to send email if address is stored
     let emailSent = false
@@ -1716,23 +1741,11 @@ app.post('/api/email/verify', async (req, res) => {
       return res.json({ success: true, verified: true })
     }
 
-    // Find the user's entry
-    const { data: allEntries } = await supabase
-      .from('email_verifications')
-      .select('*')
-
-    let target = null
-    for (const entry of (allEntries || [])) {
-      try {
-        if (decrypt(entry.address) === address) {
-          target = entry
-          break
-        }
-      } catch { /* skip */ }
-    }
+    // Find the user's entry (newest row wins)
+    const target = await findEntryByAddress(address)
 
     if (!target) {
-      return res.status(404).json({ error: 'No verification found' })
+      return res.status(404).json({ error: 'No verification found. Register your email first.' })
     }
 
     if (target.status === 2) {
@@ -1777,19 +1790,7 @@ app.get('/api/email/status/:address', async (req, res) => {
       })
     }
 
-    const { data: allEntries } = await supabase
-      .from('email_verifications')
-      .select('address, status, email_hash, verified_at')
-
-    let found = null
-    for (const entry of (allEntries || [])) {
-      try {
-        if (entry.address && decrypt(entry.address) === address) {
-          found = entry
-          break
-        }
-      } catch { /* skip — encrypted entries that don't match */ }
-    }
+    const found = await findEntryByAddress(address)
 
     res.json({
       registered: !!found,
