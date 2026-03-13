@@ -1661,6 +1661,7 @@ app.post('/api/email/send-code', async (req, res) => {
 
     // Attempt to send email if address is stored
     let emailSent = false
+    let resendErrorDetail = null
     if (targetEntry.email) {
       const recipientEmail = decrypt(targetEntry.email)
       const subject = 'ZkCircles - Email Verification Code'
@@ -1668,7 +1669,6 @@ app.post('/api/email/send-code', async (req, res) => {
       const html = `<div style="font-family:sans-serif;max-width:480px;margin:auto;padding:24px;border:1px solid #f3e8d4;border-radius:16px"><h2 style="color:#92400e">ZkCircles Verification</h2><p style="color:#44403c">Your verification code is:</p><div style="font-family:monospace;font-size:32px;font-weight:bold;letter-spacing:10px;color:#2c241f;background:#fef3c7;padding:16px;border-radius:8px;text-align:center">${code}</div><p style="color:#78716c;font-size:14px">This code expires in 30 minutes.</p></div>`
 
       // Option 1: Resend (HTTP API — no SMTP needed, free tier)
-      let resendErrorDetail = null
       if (!emailSent && process.env.RESEND_API_KEY) {
         try {
           const { Resend } = require('resend')
