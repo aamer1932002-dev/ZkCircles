@@ -51,7 +51,7 @@ export default function CircleDetail() {
   const { contribute, isContributing, transactionStatus: contributeStatus } = useContribute()
   const { claimPayout, isClaiming, transactionStatus: claimStatus } = useClaimPayout()
   const { contributeToken, isContributing: isContributingToken, transactionStatus: contributeTokenStatus } = useContributeToken()
-  const { claimPayoutToken, isClaiming: isClaimingToken, transactionStatus: claimTokenStatus } = useClaimPayoutToken()
+  const { claimPayoutToken, isClaiming: isClaimingToken } = useClaimPayoutToken()
   const { transferMembership, isTransferring, transactionStatus: transferStatus } = useTransferMembership()
   const { verifyMembership, isVerifying } = useVerifyMembership()
   const { flagMissedContribution, isFlagging } = useDisputeResolution()
@@ -65,7 +65,6 @@ export default function CircleDetail() {
   const [membershipVerified, setMembershipVerified] = useState<boolean | null>(null)
   const [showDissolveModal, setShowDissolveModal] = useState(false)
   const [isDissolving, setIsDissolving] = useState(false)
-  const [disputeTarget, setDisputeTarget] = useState<{ address: string; cycle: number } | null>(null)
 
   useEffect(() => {
     if (circleId) {
@@ -174,7 +173,6 @@ export default function CircleDetail() {
     const result = await flagMissedContribution('', defaulterAddress, cycle)
     if (result.success) {
       toast.success(`Missed payment flagged on-chain! TX: ${result.transactionId?.slice(0, 12)}...`)
-      setDisputeTarget(null)
     } else {
       toast.error(result.error || 'Failed to flag missed payment')
     }
