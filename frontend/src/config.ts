@@ -15,10 +15,8 @@
 //          dispute flagging extended to completed circles
 // v11 adds: on-chain dispute resolution (create/vote/resolve), zkEmail identity,
 //          invite links, multi-cycle dashboard, auto-contribution scheduling
-// v12 fixes: claim_payout re-issues CircleMembership so members can contribute
-//           in subsequent cycles after claiming
 export const PROGRAM_ID =
-  (import.meta.env.VITE_PROGRAM_ID as string) || 'zk_circles_v12.aleo'
+  (import.meta.env.VITE_PROGRAM_ID as string) || 'zk_circles_v11.aleo'
 
 // ── Backend API ──────────────────────────────────────────────────────────────
 export const BACKEND_URL =

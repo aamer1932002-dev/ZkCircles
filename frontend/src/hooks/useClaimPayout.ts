@@ -226,18 +226,9 @@ export function useClaimPayout() {
         }
       }
 
-      // Accepted — membership consumed; cache the new one emitted by claim_payout
+      // Accepted — membership is consumed by claim_payout in v11
       setTransactionStatus('Payout confirmed on-chain!')
       clearCachedMembership(address, circleId)
-      // Store the real on-chain ID so Layer 3 can find the new membership record next cycle
-      setJoinTxId(address, circleId, confirmation.txId)
-      if (confirmation.recordOutputs?.length && decrypt) {
-        await decryptAndCacheMembership(address, circleId, confirmation.recordOutputs[0], decrypt)
-        console.log('[ClaimPayout] New membership cached (decrypted) from TX output')
-      } else if (confirmation.recordOutputs?.length) {
-        setCachedMembership(address, circleId, confirmation.recordOutputs[0])
-        console.log('[ClaimPayout] New membership ciphertext cached from TX output')
-      }
 
       try {
         await recordPayoutBackend({ circleId, memberAddress: address, cycle: cycleNumber, amount: payoutAmount, transactionId: confirmation.txId })

@@ -25,7 +25,7 @@ const BADGES = [
 
 // ─── Stats strip ───────────────────────────────────────────────────────────────
 const STATS = [
-  { value: 'v12', label: 'Contract' },
+  { value: 'v11', label: 'Contract' },
   { value: '17',  label: 'Transitions' },
   { value: '10',  label: 'Mappings' },
   { value: '0',   label: 'Plain Addrs' },

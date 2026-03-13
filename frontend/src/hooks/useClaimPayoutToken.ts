@@ -20,7 +20,6 @@ import {
   setCachedMembership,
   clearCachedMembership,
   getJoinTxId,
-  setJoinTxId,
   fetchRecordCiphertextFromChain,
   fetchRecordByIndexFromChain,
   decryptAndCacheMembership,
@@ -203,14 +202,9 @@ export function useClaimPayoutToken() {
       }
 
       // ── Step 5: Update caches ────────────────────────────────────────
+      // Membership is consumed by claim_payout in v11 — just clear the cache
       setTransactionStatus('Payout confirmed on-chain!')
       clearCachedMembership(address, circleId)
-      setJoinTxId(address, circleId, confirmation.txId)
-      if (confirmation.recordOutputs?.length && decrypt) {
-        await decryptAndCacheMembership(address, circleId, confirmation.recordOutputs[0], decrypt)
-      } else if (confirmation.recordOutputs?.length) {
-        setCachedMembership(address, circleId, confirmation.recordOutputs[0])
-      }
 
       try {
         await recordPayoutBackend({ circleId, memberAddress: address, cycle: cycleNumber, amount: payoutAmount, transactionId: confirmation.txId })
