@@ -7,14 +7,17 @@
 //   - defaults mapping          — tracks how many cycles each member has missed
 //   - default_flags mapping     — prevents double-flagging the same defaulter/cycle
 //   - flag_missed_contribution  — any member can flag a past-cycle non-contributor
-//   - Variable contribution note: weights are stored off-chain per slot in the backend;
-//     the contract enforces a uniform contribution_amount per circle to keep on-chain
-//     logic simple.  Weighted circles are planned for v8 via per-member contribution
-//     records stored at join time.
+//
+// v8 additions:
+//   - token_id: field in CircleInfo  (0field = Aleo credits; non-zero = ARC-20 token_id)
+//   - contribute_token  — member contributes ARC-20 tokens via token_registry.aleo
+//   - claim_payout_token — winner claims ARC-20 payout via token_registry.aleo
+//   - Guards in contribute / claim_payout enforce credits-only (token_id == 0field)
 
 import credits.aleo;
+import token_registry.aleo;
 
-program zk_circles_v7.aleo {
+program zk_circles_v8.aleo {
 
     // circle status values
     // 0 = forming   (accepting members)
@@ -28,7 +31,8 @@ program zk_circles_v7.aleo {
         total_cycles: u8,
         current_cycle: u8,
         members_joined: u8,
-        status: u8
+        status: u8,
+        token_id: field  // 0field = credits.aleo; non-zero = ARC-20 token_id
     }
 
     // Used only as BHP256 hash inputs — never stored as-is
@@ -90,7 +94,8 @@ program zk_circles_v7.aleo {
         public circle_id: field,
         public contribution_amount: u64,
         public max_members: u8,
-        public total_cycles: u8
+        public total_cycles: u8,
+        public token_id: field      // 0field = Aleo credits; non-zero = ARC-20 token ID
     ) -> (CircleMembership, Future) {
         assert(contribution_amount >= 1u64);
         assert(max_members >= 2u8);
@@ -103,7 +108,7 @@ program zk_circles_v7.aleo {
             contribution_amount: contribution_amount
         };
 
-        return (membership, finalize_create_circle(circle_id, contribution_amount, max_members, total_cycles, self.signer));
+        return (membership, finalize_create_circle(circle_id, contribution_amount, max_members, total_cycles, self.signer, token_id));
     }
 
     async function finalize_create_circle(
@@ -111,7 +116,8 @@ program zk_circles_v7.aleo {
         contribution_amount: u64,
         max_members: u8,
         total_cycles: u8,
-        creator: address
+        creator: address,
+        token_id: field
     ) {
         assert(!circles.contains(circle_id));
 
@@ -121,7 +127,8 @@ program zk_circles_v7.aleo {
             total_cycles: total_cycles,
             current_cycle: 0u8,
             members_joined: 1u8,
-            status: 0u8
+            status: 0u8,
+            token_id: token_id
         });
 
         let key: field = BHP256::hash_to_field(MemberKey { circle_id: circle_id, member_addr: creator });
@@ -163,7 +170,8 @@ program zk_circles_v7.aleo {
             total_cycles: info.total_cycles,
             current_cycle: is_full ? 1u8 : 0u8,
             members_joined: new_count,
-            status: is_full ? 1u8 : 0u8
+            status: is_full ? 1u8 : 0u8,
+            token_id: info.token_id
         });
     }
 
@@ -195,6 +203,7 @@ program zk_circles_v7.aleo {
         let info: CircleInfo = circles.get(circle_id);
         assert_eq(info.status, 1u8);
         assert_eq(info.current_cycle, cycle);
+        assert_eq(info.token_id, 0field);     // credits circles only — use contribute_token for ARC-20
 
         let member_key: field = BHP256::hash_to_field(MemberKey { circle_id: circle_id, member_addr: contributor });
         assert(members.contains(member_key));
@@ -235,6 +244,7 @@ program zk_circles_v7.aleo {
         let info: CircleInfo = circles.get(circle_id);
         assert_eq(info.status, 1u8);
         assert_eq(info.current_cycle, cycle);
+        assert_eq(info.token_id, 0field);     // credits circles only — use claim_payout_token for ARC-20
 
         // Verify payout matches exactly: every member contributed once per cycle
         let expected: u64 = info.contribution_amount * (info.max_members as u64);
@@ -255,7 +265,8 @@ program zk_circles_v7.aleo {
             total_cycles: info.total_cycles,
             current_cycle: is_done ? cycle : next_cycle,
             members_joined: info.members_joined,
-            status: is_done ? 2u8 : 1u8
+            status: is_done ? 2u8 : 1u8,
+            token_id: info.token_id
         });
     }
 
@@ -277,7 +288,8 @@ program zk_circles_v7.aleo {
             total_cycles: info.total_cycles,
             current_cycle: info.current_cycle,
             members_joined: info.members_joined,
-            status: 3u8
+            status: 3u8,
+            token_id: info.token_id
         });
     }
 
@@ -320,6 +332,104 @@ program zk_circles_v7.aleo {
     async function finalize_verify_membership(circle_id: field, member_addr: address) {
         let key: field = BHP256::hash_to_field(MemberKey { circle_id: circle_id, member_addr: member_addr });
         assert(members.contains(key));
+    }
+
+    // ── ARC-20 stablecoin contributions ─────────────────────────────────────
+    // Transfers ARC-20 tokens from the signer's public balance in token_registry.aleo
+    // to THIS PROGRAM'S address so claim_payout_token can pay the winner atomically.
+    // token_id must match the one stored in the circle's CircleInfo.
+    async transition contribute_token(
+        membership: CircleMembership,
+        public cycle: u8,
+        public token_id: field
+    ) -> (CircleMembership, ContributionReceipt, Future) {
+        let tf: Future = token_registry.aleo/transfer_public_as_signer(token_id, self.address, membership.contribution_amount as u128);
+
+        let receipt: ContributionReceipt = ContributionReceipt {
+            owner: self.signer,
+            circle_id: membership.circle_id,
+            cycle: cycle,
+            amount: membership.contribution_amount
+        };
+        return (membership, receipt, finalize_contribute_token(tf, membership.circle_id, cycle, self.signer, token_id));
+    }
+
+    async function finalize_contribute_token(
+        tf: Future,
+        circle_id: field,
+        cycle: u8,
+        contributor: address,
+        token_id: field
+    ) {
+        tf.await();
+
+        let info: CircleInfo = circles.get(circle_id);
+        assert_eq(info.status, 1u8);
+        assert_eq(info.current_cycle, cycle);
+        assert_neq(info.token_id, 0field);      // ARC-20 circles only — use contribute for credits
+        assert_eq(info.token_id, token_id);     // caller must pass the correct token_id
+
+        let member_key: field = BHP256::hash_to_field(MemberKey { circle_id: circle_id, member_addr: contributor });
+        assert(members.contains(member_key));
+
+        let contrib_key: field = BHP256::hash_to_field(ContribKey { circle_id: circle_id, cycle: cycle, member_addr: contributor });
+        assert(!contributions.get_or_use(contrib_key, false));
+        contributions.set(contrib_key, true);
+    }
+
+    // Pays out the winner for this cycle by transferring ARC-20 tokens from
+    // THIS PROGRAM'S token balance (accumulated via contribute_token) to the claimer.
+    async transition claim_payout_token(
+        membership: CircleMembership,
+        public cycle: u8,
+        public payout_amount: u64,
+        public token_id: field
+    ) -> (PayoutReceipt, Future) {
+        let tf: Future = token_registry.aleo/transfer_public(token_id, self.signer, payout_amount as u128);
+
+        let receipt: PayoutReceipt = PayoutReceipt {
+            owner: self.signer,
+            circle_id: membership.circle_id,
+            cycle: cycle
+        };
+        return (receipt, finalize_claim_payout_token(tf, membership.circle_id, cycle, self.signer, payout_amount, token_id));
+    }
+
+    async function finalize_claim_payout_token(
+        tf: Future,
+        circle_id: field,
+        cycle: u8,
+        claimer: address,
+        payout_amount: u64,
+        token_id: field
+    ) {
+        let info: CircleInfo = circles.get(circle_id);
+        assert_eq(info.status, 1u8);
+        assert_eq(info.current_cycle, cycle);
+        assert_neq(info.token_id, 0field);        // ARC-20 circles only
+        assert_eq(info.token_id, token_id);       // caller must pass the correct token_id
+
+        let expected: u64 = info.contribution_amount * (info.max_members as u64);
+        assert_eq(payout_amount, expected);
+
+        let key: field = BHP256::hash_to_field(MemberKey { circle_id: circle_id, member_addr: claimer });
+        let join_order: u8 = members.get(key);
+        assert_eq(join_order, cycle);
+
+        tf.await();
+
+        let next_cycle: u8 = cycle + 1u8;
+        let is_done: bool = next_cycle > info.total_cycles;
+
+        circles.set(circle_id, CircleInfo {
+            contribution_amount: info.contribution_amount,
+            max_members: info.max_members,
+            total_cycles: info.total_cycles,
+            current_cycle: is_done ? cycle : next_cycle,
+            members_joined: info.members_joined,
+            status: is_done ? 2u8 : 1u8,
+            token_id: info.token_id
+        });
     }
 
     // Any member can flag another member who failed to contribute in a completed cycle.

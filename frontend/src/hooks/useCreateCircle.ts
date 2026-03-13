@@ -15,6 +15,7 @@ interface CreateCircleParams {
   contributionAmount: number // in microcredits
   maxMembers: number
   totalCycles: number
+  tokenId?: string   // 0field = Aleo credits (default); non-zero = ARC-20 token_id
 }
 
 interface CreateCircleResult {
@@ -51,12 +52,14 @@ export function useCreateCircle() {
       const salt = generateSalt()
       const circleId = await hashToField(`${address}:${params.name}:${salt}`)
 
-      // Inputs: create_circle(circle_id, contribution_amount, max_members, total_cycles)
+      // Inputs: create_circle(circle_id, contribution_amount, max_members, total_cycles, token_id)
+      const tokenId = params.tokenId ?? '0field'
       const inputs = [
         circleId,                                   // circle_id: field
         `${params.contributionAmount}u64`,          // contribution_amount: u64
         `${params.maxMembers}u8`,                   // max_members: u8
         `${params.totalCycles}u8`,                  // total_cycles: u8
+        tokenId,                                    // token_id: field (0field = Aleo credits)
       ]
 
       setTransactionStatus('Awaiting wallet approval...')
@@ -143,6 +146,7 @@ export function useCreateCircle() {
           totalCycles: params.totalCycles,
           transactionId: txId,
           status: 0,
+          tokenId: params.tokenId ?? '0field',
         })
       } catch (backendError) {
         console.warn('Backend save failed (non-critical):', backendError)

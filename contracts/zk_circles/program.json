@@ -1,11 +1,16 @@
 {
-    "program": "zk_circles_v7.aleo",
+    "program": "zk_circles_v8.aleo",
     "version": "0.1.0",
     "description": "ZkCircles - Privacy-preserving ROSCA on Aleo",
     "license": "MIT",
     "dependencies": [
         {
             "name": "credits.aleo",
+            "location": "network",
+            "network": "testnet"
+        },
+        {
+            "name": "token_registry.aleo",
             "location": "network",
             "network": "testnet"
         }

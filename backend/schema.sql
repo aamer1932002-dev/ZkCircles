@@ -22,7 +22,10 @@ CREATE TABLE circles (
     members_joined SMALLINT NOT NULL DEFAULT 0,
     start_block INTEGER, -- Block when circle started
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    -- v8: ARC-20 token support via token_registry.aleo
+    -- '0field' = Aleo native credits; non-zero field = ARC-20 token_id
+    token_id TEXT NOT NULL DEFAULT '0field'
 );
 
 -- Members table

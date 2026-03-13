@@ -51,6 +51,9 @@ export interface CircleData {
   totalContributed?: number
   isYourTurn?: boolean
   needsContribution?: boolean
+  // ARC-20 token support (v8+)
+  // '0field' = Aleo native credits; non-zero = ARC-20 token_id from token_registry.aleo
+  tokenId?: string
 }
 
 export interface MemberData {
@@ -243,6 +246,7 @@ export async function saveCircleToBackend(data: {
   transactionId: string
   status: number
   cycleDurationBlocks?: number
+  tokenId?: string
 }): Promise<void> {
   // Always save to local storage as backup
   const localData = getLocalData()
@@ -259,6 +263,7 @@ export async function saveCircleToBackend(data: {
     currentCycle: 1, // Leo contract cycles are 1-based
     membersJoined: 1,
     createdAt: new Date().toISOString(),
+    tokenId: data.tokenId ?? '0field',
   }
   
   // Check if circle already exists

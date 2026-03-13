@@ -25,6 +25,8 @@ import {
 import { useCircleDetail } from '../hooks/useCircleDetail'
 import { useContribute } from '../hooks/useContribute'
 import { useClaimPayout } from '../hooks/useClaimPayout'
+import { useContributeToken } from '../hooks/useContributeToken'
+import { useClaimPayoutToken } from '../hooks/useClaimPayoutToken'
 import { useTransferMembership } from '../hooks/useTransferMembership'
 import { useVerifyMembership } from '../hooks/useVerifyMembership'
 import { useDisputeResolution } from '../hooks/useDisputeResolution'
@@ -32,6 +34,7 @@ import { useJoinCircle } from '../hooks/useJoinCircle'
 import { dissolveCircle } from '../services/api'
 import NotificationBanner, { NotificationToggle } from '../components/NotificationBanner'
 import { useNotifications } from '../hooks/useNotifications'
+import { getTokenConfig, TOKEN_ID_ALEO } from '../config'
 
 const statusLabels = {
   0: { label: 'Forming', color: 'badge-amber', description: 'Waiting for members to join' },
@@ -47,6 +50,8 @@ export default function CircleDetail() {
   const { circle, members, isLoading, fetchCircleDetail, onChainStatus } = useCircleDetail()
   const { contribute, isContributing, transactionStatus: contributeStatus } = useContribute()
   const { claimPayout, isClaiming, transactionStatus: claimStatus } = useClaimPayout()
+  const { contributeToken, isContributing: isContributingToken, transactionStatus: contributeTokenStatus } = useContributeToken()
+  const { claimPayoutToken, isClaiming: isClaimingToken, transactionStatus: claimTokenStatus } = useClaimPayoutToken()
   const { transferMembership, isTransferring, transactionStatus: transferStatus } = useTransferMembership()
   const { verifyMembership, isVerifying } = useVerifyMembership()
   const { flagMissedContribution, isFlagging } = useDisputeResolution()
@@ -106,8 +111,11 @@ export default function CircleDetail() {
   }
 
   const handleContribute = async () => {
-    if (!circleId || !connected) return
-    const result = await contribute(circleId, circle?.contributionAmount || 0)
+    if (!circleId || !connected || !circle) return
+    const tokenId = circle.tokenId ?? TOKEN_ID_ALEO
+    const result = tokenId !== TOKEN_ID_ALEO
+      ? await contributeToken(circleId, circle.contributionAmount, tokenId)
+      : await contribute(circleId, circle.contributionAmount)
     if (result.success) {
       toast.success('Contribution confirmed on-chain!')
       fetchCircleDetail(circleId)
@@ -117,8 +125,11 @@ export default function CircleDetail() {
   }
 
   const handleClaimPayout = async () => {
-    if (!circleId || !connected) return
-    const result = await claimPayout(circleId)
+    if (!circleId || !connected || !circle) return
+    const tokenId = circle.tokenId ?? TOKEN_ID_ALEO
+    const result = tokenId !== TOKEN_ID_ALEO
+      ? await claimPayoutToken(circleId, tokenId)
+      : await claimPayout(circleId)
     if (result.success) {
       toast.success('Payout confirmed on-chain!')
       fetchCircleDetail(circleId)
@@ -248,6 +259,8 @@ export default function CircleDetail() {
   const allContributedThisCycle = circle.status === 1 && contributorsThisCycle >= circle.maxMembers
   const potSize = (circle.contributionAmount * circle.maxMembers) / 1_000_000
   const progress = circle.status === 1 ? (circle.currentCycle / circle.totalCycles) * 100 : 0
+  const tokenConfig = getTokenConfig(circle.tokenId)
+  const tokenSymbol = tokenConfig.symbol
 
   // Members who have missed at least one past cycle — shown in the dispute panel
   const membersWithMissedCycles = circle.status === 1 && circle.currentCycle > 1
@@ -355,7 +368,7 @@ export default function CircleDetail() {
                 <div className="font-display text-2xl font-bold text-midnight-900">
                   {potSize.toFixed(2)}
                 </div>
-                <div className="text-xs text-midnight-500">ALEO per pot</div>
+                <div className="text-xs text-midnight-500">{tokenSymbol} per pot</div>
               </div>
               <div className="card text-center">
                 <Calendar className="w-6 h-6 text-terra-500 mx-auto mb-2" />
@@ -502,7 +515,7 @@ export default function CircleDetail() {
                         {circle.maxMembers - circle.membersJoined} spots available
                       </p>
                       <p className="text-xs text-forest-700 mt-1">
-                        Contribution: {(circle.contributionAmount / 1_000_000).toFixed(3)} ALEO per cycle
+                        Contribution: {(circle.contributionAmount / 1_000_000).toFixed(3)} {tokenSymbol} per cycle
                       </p>
                     </div>
                   </div>
@@ -576,10 +589,10 @@ export default function CircleDetail() {
                     </div>
                     <button
                       onClick={handleContribute}
-                      disabled={isContributing}
+                      disabled={isContributing || isContributingToken}
                       className="btn-primary w-full flex items-center justify-center gap-2"
                     >
-                      {isContributing ? (
+                      {isContributing || isContributingToken ? (
                         <Loader2 className="w-5 h-5 animate-spin" />
                       ) : (
                         <Coins className="w-5 h-5" />
@@ -587,9 +600,9 @@ export default function CircleDetail() {
                       {isMyTurn ? 'Contribute (Required Before Claiming)' : 'Contribute Now'}
                     </button>
                     
-                    {contributeStatus && (
+                    {(contributeStatus || contributeTokenStatus) && (
                       <div className="mt-3 p-3 bg-cream-100 rounded-xl">
-                        <p className="text-sm text-midnight-700">{contributeStatus}</p>
+                        <p className="text-sm text-midnight-700">{contributeStatus || contributeTokenStatus}</p>
                       </div>
                     )}
                   </div>
@@ -627,9 +640,9 @@ export default function CircleDetail() {
                           </p>
                           <p className={`text-xs mt-1 ${allContributedThisCycle ? 'text-forest-700' : 'text-amber-700'}`}>
                             {allContributedThisCycle
-                              ? `Claim your payout of ${potSize.toFixed(3)} ALEO`
+                              ? `Claim your payout of ${potSize.toFixed(3)} ${tokenSymbol}`
                               : !hasContributedThisCycle
-                              ? `Contribute ${(circle.contributionAmount / 1_000_000).toFixed(3)} ALEO above first, then all ${circle.maxMembers} members must contribute before you can claim.`
+                              ? `Contribute ${(circle.contributionAmount / 1_000_000).toFixed(3)} ${tokenSymbol} above first, then all ${circle.maxMembers} members must contribute before you can claim.`
                               : `${contributorsThisCycle} of ${circle.maxMembers} members have contributed for cycle ${circle.currentCycle}. Waiting for the remaining ${circle.maxMembers - contributorsThisCycle} member(s).`}
                           </p>
                           {/* Progress bar */}
@@ -644,10 +657,10 @@ export default function CircleDetail() {
                     </div>
                     <button
                       onClick={handleClaimPayout}
-                      disabled={isClaiming || !allContributedThisCycle}
+                      disabled={isClaiming || isClaimingToken || !allContributedThisCycle}
                       className="btn-forest w-full flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {isClaiming ? (
+                      {isClaiming || isClaimingToken ? (
                         <Loader2 className="w-5 h-5 animate-spin" />
                       ) : (
                         <Trophy className="w-5 h-5" />
@@ -774,13 +787,13 @@ export default function CircleDetail() {
                 <div className="flex justify-between py-2 border-b border-cream-200">
                   <span className="text-midnight-600">Contribution</span>
                   <span className="font-medium text-midnight-900">
-                    {(circle.contributionAmount / 1_000_000).toFixed(3)} ALEO
+                    {(circle.contributionAmount / 1_000_000).toFixed(3)} {tokenSymbol}
                   </span>
                 </div>
                 <div className="flex justify-between py-2 border-b border-cream-200">
                   <span className="text-midnight-600">Pot Size</span>
                   <span className="font-medium text-midnight-900">
-                    {potSize.toFixed(3)} ALEO
+                    {potSize.toFixed(3)} {tokenSymbol}
                   </span>
                 </div>
                 <div className="flex justify-between py-2 border-b border-cream-200">

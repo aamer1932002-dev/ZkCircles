@@ -177,6 +177,7 @@ app.get('/api/circles', async (req, res) => {
           currentCycle: c.current_cycle,
           membersJoined: c.members_joined,
           createdAt: c.created_at,
+          tokenId: c.token_id || '0field',
         })),
         stats: {
           totalCircles: mockData.circles.length,
@@ -239,6 +240,7 @@ app.get('/api/circles', async (req, res) => {
       membersJoined: memberCountMap[circle.circle_id] || circle.members_joined || 0,
       startBlock: circle.start_block,
       createdAt: circle.created_at,
+      tokenId: circle.token_id || '0field',
     }))
 
     res.json({
@@ -278,6 +280,7 @@ app.get('/api/circles/:circleId', async (req, res) => {
           currentCycle: circle.current_cycle,
           membersJoined: circle.members_joined,
           createdAt: circle.created_at,
+          tokenId: circle.token_id || '0field',
         },
         members: [
           { address: 'aleo1mock...abc', joinOrder: 1, totalContributed: 10000000, hasReceivedPayout: false, active: true },
@@ -351,6 +354,7 @@ app.get('/api/circles/:circleId', async (req, res) => {
       membersJoined: actualMemberCount, // Use actual count from members table
       startBlock: circle.start_block,
       createdAt: circle.created_at,
+      tokenId: circle.token_id || '0field',
     }
 
     const decryptedMembers = members.map(member => {
@@ -403,6 +407,7 @@ app.get('/api/circles/member/:address', async (req, res) => {
         totalContributed: 10000000,
         isYourTurn: c.current_cycle === 1,
         needsContribution: true,
+        tokenId: c.token_id || '0field',
       })))
     }
 
@@ -468,6 +473,7 @@ app.get('/api/circles/member/:address', async (req, res) => {
       totalContributed: 0, // Will be calculated
       isYourTurn: false,
       needsContribution: false,
+      tokenId: circle.token_id || '0field',
     }))
 
     res.json(decryptedCircles)
@@ -496,6 +502,7 @@ app.post('/api/circles', async (req, res) => {
       nameHash = null,
       cycleDurationBlocks = 0,
       salt = null,
+      tokenId = '0field',
     } = req.body
 
     const resolvedTotalCycles = totalCycles || maxMembers || 0
@@ -514,6 +521,7 @@ app.post('/api/circles', async (req, res) => {
         current_cycle: 1,
         members_joined: 1,
         created_at: new Date().toISOString(),
+        token_id: tokenId || '0field',
       }
       mockData.circles.push(newCircle)
       return res.json({ success: true, circleId })
@@ -536,6 +544,7 @@ app.post('/api/circles', async (req, res) => {
     // Only include nullable columns when the caller actually sends them
     if (nameHash != null) circleInsert.name_hash = nameHash
     if (salt != null) circleInsert.salt = salt
+    if (tokenId && tokenId !== '0field') circleInsert.token_id = tokenId
 
     // Insert circle
     const { error: circleError } = await supabase

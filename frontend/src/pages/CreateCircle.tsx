@@ -13,6 +13,7 @@ import {
   CheckCircle2
 } from 'lucide-react'
 import { useCreateCircle } from '../hooks/useCreateCircle'
+import { TOKENS, getTokenConfig, TOKEN_ID_ALEO } from '../config'
 
 export default function CreateCircle() {
   const navigate = useNavigate()
@@ -24,6 +25,7 @@ export default function CreateCircle() {
     contributionAmount: '',
     maxMembers: '6',
     cycleDuration: '7', // days
+    tokenId: TOKEN_ID_ALEO,
   })
 
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -49,7 +51,8 @@ export default function CreateCircle() {
     if (!formData.contributionAmount) {
       newErrors.contributionAmount = 'Contribution amount is required'
     } else if (parseFloat(formData.contributionAmount) < 0.001) {
-      newErrors.contributionAmount = 'Minimum contribution is 0.001 ALEO'
+      const sym = getTokenConfig(formData.tokenId).symbol
+      newErrors.contributionAmount = `Minimum contribution is 0.001 ${sym}`
     }
 
     const members = parseInt(formData.maxMembers)
@@ -85,6 +88,7 @@ export default function CreateCircle() {
         contributionAmount: contributionMicrocredits,
         maxMembers: parseInt(formData.maxMembers),
         totalCycles: parseInt(formData.maxMembers), // one cycle per member
+        tokenId: formData.tokenId,
       })
 
       if (result.success) {
@@ -98,6 +102,7 @@ export default function CreateCircle() {
   }
 
   // Calculate total pot size
+  const selectedToken = getTokenConfig(formData.tokenId)
   const totalPot = formData.contributionAmount && formData.maxMembers
     ? (parseFloat(formData.contributionAmount) * parseInt(formData.maxMembers)).toFixed(3)
     : '0'
@@ -169,10 +174,36 @@ export default function CreateCircle() {
                 )}
               </div>
 
+              {/* Token Selector */}
+              <div>
+                <label htmlFor="tokenId" className="input-label">
+                  Contribution Token
+                </label>
+                <select
+                  id="tokenId"
+                  name="tokenId"
+                  value={formData.tokenId}
+                  onChange={handleInputChange}
+                  className="input appearance-none cursor-pointer"
+                  disabled={isCreating}
+                >
+                  {TOKENS.map(t => (
+                    <option key={t.tokenId} value={t.tokenId}>
+                      {t.symbol} — {t.label}
+                    </option>
+                  ))}
+                </select>
+                {formData.tokenId !== TOKEN_ID_ALEO && (
+                  <p className="mt-1 text-sm text-amber-600">
+                    ⚠ Token ID is a placeholder — update VITE_TOKEN_ID_{selectedToken.symbol.toUpperCase()} in your .env once the token is registered on Aleo testnet.
+                  </p>
+                )}
+              </div>
+
               {/* Contribution Amount */}
               <div>
                 <label htmlFor="contributionAmount" className="input-label">
-                  Contribution Per Cycle (ALEO)
+                  Contribution Per Cycle ({selectedToken.symbol})
                 </label>
                 <div className="relative">
                   <Coins className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-midnight-400" />
@@ -310,7 +341,7 @@ export default function CreateCircle() {
                 <div className="flex justify-between items-center py-3 border-b border-cream-200">
                   <span className="text-midnight-600">Per Cycle</span>
                   <span className="font-semibold text-midnight-900">
-                    {formData.contributionAmount || '0'} ALEO
+                    {formData.contributionAmount || '0'} {selectedToken.symbol}
                   </span>
                 </div>
 
@@ -334,7 +365,7 @@ export default function CreateCircle() {
                   <div className="p-4 bg-gradient-to-br from-amber-50 to-amber-100 rounded-xl">
                     <div className="text-sm text-amber-700 mb-1">Pot Size Per Cycle</div>
                     <div className="font-display text-2xl font-bold text-amber-800">
-                      {totalPot} ALEO
+                      {totalPot} {selectedToken.symbol}
                     </div>
                   </div>
                 </div>
