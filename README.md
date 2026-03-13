@@ -10,7 +10,7 @@ ZkCircles brings the centuries-old tradition of community savings circles (ROSCA
 
 ---
 
-## ï¿½ What are ROSCAs?
+## ðŸŒ What are ROSCAs?
 
 Rotating Savings and Credit Associations have been trusted by communities worldwide for centuries â€” known as Tandas (Latin America), Chit Funds (India), Susu (West Africa), and Hui (China). Members contribute fixed amounts each cycle, and one member receives the entire pot per cycle. ZkCircles digitises this trust with cryptographic guarantees on Aleo.
 
@@ -62,7 +62,7 @@ Rotating Savings and Credit Associations have been trusted by communities worldw
 
 ## ðŸ“œ Smart Contract
 
-**Deployed program:** `zk_circles_v6.aleo`  
+**Deployed program:** `zk_circles_v6.aleo`
 **Deployment TX:** `at1z5rendz2gtpeq7u2ldsnmy8mrcvlxasn373n9j5j54v8t32lxcrsq7u7wh`
 
 ### Transitions
@@ -93,7 +93,7 @@ Rotating Savings and Credit Associations have been trusted by communities worldw
 | `members` | `BHP256(circle_id, member_addr)` â†’ `join_order: u8` |
 | `contributions` | `BHP256(circle_id, cycle, member_addr)` â†’ `bool` |
 
-### Privacy design
+### Privacy Design
 
 - Member addresses are **never stored in plain text** â€” all mapping keys are BHP256 hashes
 - Membership and contribution proofs are **private records** owned by the user's key
@@ -231,6 +231,39 @@ await executeTransaction({
 
 ---
 
+## ðŸ—ºï¸ Roadmap
+
+### âœ… Completed
+
+| Feature | Description |
+|---|---|
+| Smart Contract (v6) | Deployed `zk_circles_v6.aleo` on Aleo Testnet |
+| Full ROSCA flow | Create â†’ Join â†’ Contribute â†’ Claim across all cycles |
+| Shield Wallet support | `shield_` temp ID resolution; `privateFee: false` |
+| Leo Wallet support | Full adapter integration |
+| Privacy-first design | BHP256 hashed member keys, encrypted circle names |
+| Record type guards | Rejects wrong-type plaintexts before transaction submission |
+| Membership caching | 3-layer fallback: wallet â†’ localStorage â†’ chain fetch |
+| Transaction tracker | Explorer polling with Shield temp ID resolution |
+| Analytics | Per-cycle contribution history, member breakdown, payout schedule |
+| Backend indexing | Express + Supabase with AES-256-GCM encrypted metadata |
+| On-chain pre-flight | Live chain state checked before every transaction |
+
+### ðŸš§ Next Wave
+
+| Feature | Priority | Description |
+|---|---|---|
+| Mainnet deployment | High | Audit and deploy to Aleo Mainnet |
+| Circle invite links | High | Share a URL to invite members directly to a forming circle |
+| Push notifications | Medium | Alert members when it's their turn to contribute or claim |
+| Mobile-responsive UI | Medium | Optimised layout for phones and tablets |
+| Multi-cycle dashboard | Medium | Visual timeline of all past and upcoming payout cycles |
+| Auto-contribution | Low | Scheduled contributions so members never miss a cycle |
+| Dispute resolution | Low | On-chain mechanism for handling missed contributions |
+| zkEmail integration | Low | Verify real-world identity via ZK email proofs for trusted circles |
+
+---
+
 ## ðŸ”— Resources
 
 - [Aleo Developer Docs](https://developer.aleo.org/)
@@ -238,12 +271,6 @@ await executeTransaction({
 - [Shield Wallet](https://www.shieldwallet.xyz/)
 - [Aleo Testnet Explorer](https://explorer.aleo.org/)
 - [Supabase Docs](https://supabase.com/docs)
-
----
-
-## âš ï¸ Disclaimer
-
-Deployed on Aleo Testnet only. Smart contracts have not been audited. Use at your own risk.
 
 ---
 
