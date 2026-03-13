@@ -192,7 +192,7 @@ CREATE POLICY "Allow backend update on invites"
 CREATE TABLE disputes (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     dispute_id TEXT UNIQUE NOT NULL,        -- on-chain dispute field hash
-    circle_id TEXT NOT NULL REFERENCES circles(circle_id) ON DELETE CASCADE,
+    circle_id TEXT NOT NULL,                -- no FK: circle format may differ
     accused TEXT NOT NULL,                  -- encrypted address
     reporter TEXT NOT NULL,                 -- encrypted address
     reason SMALLINT NOT NULL DEFAULT 0,     -- 0=missed, 1=suspicious, 2=collusion
@@ -219,7 +219,7 @@ CREATE POLICY "Allow backend update on disputes"
 -- Dispute votes table
 CREATE TABLE dispute_votes (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-    dispute_id TEXT NOT NULL REFERENCES disputes(dispute_id) ON DELETE CASCADE,
+    dispute_id TEXT NOT NULL,              -- no FK: avoids cascade issues
     voter TEXT NOT NULL,                    -- encrypted address
     vote_for BOOLEAN NOT NULL,             -- true=guilty, false=innocent
     transaction_id TEXT,

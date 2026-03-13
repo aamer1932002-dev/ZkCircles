@@ -1279,7 +1279,7 @@ app.post('/api/disputes', async (req, res) => {
       return res.json({ success: true })
     }
 
-    const { error } = await supabase.from('disputes').insert({
+    const { error } = await supabase.from('disputes').upsert({
       dispute_id: disputeId,
       circle_id: circleId,
       accused: encrypt(accused),
@@ -1290,16 +1290,16 @@ app.post('/api/disputes', async (req, res) => {
       status: 0,
       cycle,
       transaction_id: transactionId,
-    })
+    }, { onConflict: 'dispute_id' })
     if (error) throw error
 
-    // Record reporter's vote
-    await supabase.from('dispute_votes').insert({
+    // Record reporter's vote (ignore duplicate)
+    await supabase.from('dispute_votes').upsert({
       dispute_id: disputeId,
       voter: encrypt(reporter),
       vote_for: true,
       transaction_id: transactionId,
-    })
+    }, { onConflict: 'dispute_id,voter' }).then(() => {})
 
     res.json({ success: true })
   } catch (error) {

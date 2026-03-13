@@ -30,6 +30,7 @@ interface DisputeResult {
   transactionId?: string
   disputeId?: string
   error?: string
+  backendWarning?: string
 }
 
 async function resolveMembership(
@@ -139,13 +140,21 @@ export function useOnChainDispute() {
       // Compute dispute_id the same way Leo does: hash(DisputeKey{circle_id, accused, cycle})
       // We approximate it here for backend indexing
       const disputeId = `${circleId}_${accused}_${cycle}`
-      await recordDispute({ disputeId, circleId, accused, reporter: address, reason, cycle, transactionId: txId })
+      let backendWarning: string | null = null
+      try {
+        await recordDispute({ disputeId, circleId, accused, reporter: address, reason, cycle, transactionId: txId })
+      } catch (backendErr) {
+        // Dispute IS on-chain but failed to index in backend DB.
+        // Return success so caller knows the chain TX worked, but surface the warning.
+        backendWarning = backendErr instanceof Error ? backendErr.message : 'Backend indexing failed'
+        console.error('[OnChainDispute] recordDispute backend error:', backendErr)
+      }
 
       setTransactionStatus('Dispute created!')
       await new Promise(r => setTimeout(r, 1500))
       setIsProcessing(false)
       setTransactionStatus(null)
-      return { success: true, transactionId: txId, disputeId }
+      return { success: true, transactionId: txId, disputeId, backendWarning: backendWarning ?? undefined }
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Unknown error'
       if (isStalePermissionsError(msg)) {

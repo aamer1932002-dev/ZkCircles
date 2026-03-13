@@ -60,6 +60,9 @@ export default function DisputeResolution() {
     const result = await createDispute(circleId, newDispute.accused, newDispute.reason, newDispute.cycle)
     if (result.success) {
       toast.success('Dispute created on-chain!')
+      if (result.backendWarning) {
+        toast.error(`Note: dispute tracking DB error — ${result.backendWarning}. The dispute IS recorded on-chain.`, { duration: 8000 })
+      }
       setShowCreateForm(false)
       // Refresh disputes
       const updated = await fetchDisputes(circleId)

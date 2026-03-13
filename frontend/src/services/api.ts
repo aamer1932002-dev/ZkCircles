@@ -599,14 +599,14 @@ export async function recordDispute(data: {
   cycle: number
   transactionId: string
 }): Promise<void> {
-  try {
-    await fetch(`${BACKEND_URL}/api/disputes`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    })
-  } catch (error) {
-    console.warn('Failed to record dispute:', error)
+  const response = await fetch(`${BACKEND_URL}/api/disputes`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    throw new Error((err as any).error || `HTTP ${response.status}`)
   }
 }
 
