@@ -157,20 +157,23 @@ export function useClaimPayoutToken() {
 
       setTransactionStatus('Awaiting wallet approval…')
 
+      // Dispatch to the correct transition based on token_id
+      const fnName = tokenId === '1field' ? 'claim_payout_usdcx'
+                   : tokenId === '2field' ? 'claim_payout_usad'
+                   : 'claim_payout'
       const fmt = membershipInput.startsWith('record1')
         ? 'ciphertext'
         : membershipInput.includes('_nonce') ? 'plaintext+nonce' : 'bare-plaintext'
-      console.log(`[ClaimPayoutToken] cycle=${cycleNumber}u8, payout=${payoutAmount}u64, tokenId=${tokenId}, record=[${fmt}]`)
+      console.log(`[ClaimPayoutToken] fn=${fnName}, cycle=${cycleNumber}u8, payout=${payoutAmount}u64, record=[${fmt}]`)
 
-      // ── Step 4: Submit claim_payout_token ──────────────────────────
+      // ── Step 4: Submit claim_payout_usdcx / claim_payout_usad ──────
       const result = await executeTransaction({
         program: PROGRAM_ID,
-        function: 'claim_payout_token',
+        function: fnName,
         inputs: [
           membershipInput,           // membership: CircleMembership
           `${cycleNumber}u8`,        // cycle: u8 (public)
           `${payoutAmount}u64`,      // payout_amount: u64 (public)
-          tokenId,                   // token_id: field (public) — already has 'field' suffix
         ],
         fee: FEE_CLAIM,
         privateFee: false,

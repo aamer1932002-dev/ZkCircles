@@ -10,10 +10,11 @@
 // ── Deployed contract ────────────────────────────────────────────────────────
 // v6 Deployment TX: at1z5rendz2gtpeq7u2ldsnmy8mrcvlxasn373n9j5j54v8t32lxcrsq7u7wh
 // v7 adds: flag_missed_contribution, defaults mapping, default_flags mapping
-// v8 adds: token_id in CircleInfo, contribute_token + claim_payout_token via token_registry.aleo
-// Switch PROGRAM_ID to zk_circles_v8.aleo after deploying v8 to testnet
+// v8 adds: token_id in CircleInfo, stablecoin support via token_registry.aleo
+// v9 adds: direct imports of test_usdcx_stablecoin.aleo + test_usad_stablecoin.aleo
+//         token_id = 1field (USDCx) / 2field (USAD) — no token_registry.aleo needed
 export const PROGRAM_ID =
-  (import.meta.env.VITE_PROGRAM_ID as string) || 'zk_circles_v6.aleo'
+  (import.meta.env.VITE_PROGRAM_ID as string) || 'zk_circles_v9.aleo'
 
 // ── Backend API ──────────────────────────────────────────────────────────────
 export const BACKEND_URL =
@@ -40,17 +41,11 @@ export const FEE_DISPUTE      =   300_000   // 0.3 ALEO  (flag_missed_contributi
 // are registered in token_registry.aleo on Aleo testnet.
 export const TOKEN_ID_ALEO = '0field'
 
-// USDCx — USD Coin bridged to Aleo via token_registry.aleo
-// Placeholder: replace with the actual field value from the testnet registry
-export const TOKEN_ID_USDCX =
-  (import.meta.env.VITE_TOKEN_ID_USDCX as string) ||
-  '1802841263955688986023655779576721959822049547892688199453139491737961494028field'
+// USDCx — test_usdcx_stablecoin.aleo (token_id = 1field in our contract)
+export const TOKEN_ID_USDCX = '1field'
 
-// USAD — Aleo Dollar (native Aleo stablecoin)
-// Placeholder: replace with the actual field value from the testnet registry
-export const TOKEN_ID_USAD =
-  (import.meta.env.VITE_TOKEN_ID_USAD as string) ||
-  '5017931364024986665536979104547285897176750716960040578455898820580049988403field'
+// USAD — test_usad_stablecoin.aleo (token_id = 2field in our contract)
+export const TOKEN_ID_USAD = '2field'
 
 export interface TokenConfig {
   tokenId: string

@@ -156,16 +156,19 @@ export function useContributeToken() {
       const fmt = recordInput.startsWith('record1')
         ? 'ciphertext'
         : recordInput.includes('_nonce') ? 'plaintext+nonce' : 'bare-plaintext'
-      console.log(`[ContributeToken] executeTransaction: cycle=${cycle}u8, tokenId=${tokenId}, record=[${fmt}]`)
+      // Dispatch to the correct transition based on token_id
+      const fnName = tokenId === '1field' ? 'contribute_usdcx'
+                   : tokenId === '2field' ? 'contribute_usad'
+                   : 'contribute'
+      console.log(`[ContributeToken] executeTransaction: fn=${fnName}, cycle=${cycle}u8, record=[${fmt}]`)
 
-      // ── Step 4: Submit contribute_token(membership, cycle, token_id) ───
+      // ── Step 4: Submit contribute_usdcx / contribute_usad ──────────
       const result = await executeTransaction({
         program: PROGRAM_ID,
-        function: 'contribute_token',
+        function: fnName,
         inputs: [
           recordInput,   // membership: CircleMembership
           `${cycle}u8`,  // cycle: u8 (public)
-          tokenId,       // token_id: field (public) — already has 'field' suffix
         ],
         fee: FEE_CONTRIBUTE,
         privateFee: false,

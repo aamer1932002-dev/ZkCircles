@@ -9,15 +9,20 @@
 //   - flag_missed_contribution  — any member can flag a past-cycle non-contributor
 //
 // v8 additions:
-//   - token_id: field in CircleInfo  (0field = Aleo credits; non-zero = ARC-20 token_id)
-//   - contribute_token  — member contributes ARC-20 tokens via token_registry.aleo
-//   - claim_payout_token — winner claims ARC-20 payout via token_registry.aleo
-//   - Guards in contribute / claim_payout enforce credits-only (token_id == 0field)
+//   - token_id: field in CircleInfo  (0field = Aleo credits; non-zero = stablecoin)
+//   - contribute_token / claim_payout_token via token_registry.aleo
+// v9 additions:
+//   - Replaced token_registry.aleo with direct imports:
+//       test_usdcx_stablecoin.aleo (token_id = 1field)
+//       test_usad_stablecoin.aleo  (token_id = 2field)
+//   - contribute_usdcx / claim_payout_usdcx
+//   - contribute_usad  / claim_payout_usad
 
 import credits.aleo;
-import token_registry.aleo;
+import test_usdcx_stablecoin.aleo;
+import test_usad_stablecoin.aleo;
 
-program zk_circles_v8.aleo {
+program zk_circles_v9.aleo {
 
     // circle status values
     // 0 = forming   (accepting members)
@@ -334,16 +339,13 @@ program zk_circles_v8.aleo {
         assert(members.contains(key));
     }
 
-    // ── ARC-20 stablecoin contributions ─────────────────────────────────────
-    // Transfers ARC-20 tokens from the signer's public balance in token_registry.aleo
-    // to THIS PROGRAM'S address so claim_payout_token can pay the winner atomically.
-    // token_id must match the one stored in the circle's CircleInfo.
-    async transition contribute_token(
+    // ── USDCx contributions (test_usdcx_stablecoin.aleo, token_id = 1field) ──────
+    // Transfers USDCx from the signer's public balance to THIS PROGRAM'S address.
+    async transition contribute_usdcx(
         membership: CircleMembership,
-        public cycle: u8,
-        public token_id: field
+        public cycle: u8
     ) -> (CircleMembership, ContributionReceipt, Future) {
-        let tf: Future = token_registry.aleo/transfer_public_as_signer(token_id, self.address, membership.contribution_amount as u128);
+        let tf: Future = test_usdcx_stablecoin.aleo/transfer_public_as_signer(self.address, membership.contribution_amount as u128);
 
         let receipt: ContributionReceipt = ContributionReceipt {
             owner: self.signer,
@@ -351,23 +353,21 @@ program zk_circles_v8.aleo {
             cycle: cycle,
             amount: membership.contribution_amount
         };
-        return (membership, receipt, finalize_contribute_token(tf, membership.circle_id, cycle, self.signer, token_id));
+        return (membership, receipt, finalize_contribute_usdcx(tf, membership.circle_id, cycle, self.signer));
     }
 
-    async function finalize_contribute_token(
+    async function finalize_contribute_usdcx(
         tf: Future,
         circle_id: field,
         cycle: u8,
-        contributor: address,
-        token_id: field
+        contributor: address
     ) {
         tf.await();
 
         let info: CircleInfo = circles.get(circle_id);
         assert_eq(info.status, 1u8);
         assert_eq(info.current_cycle, cycle);
-        assert_neq(info.token_id, 0field);      // ARC-20 circles only — use contribute for credits
-        assert_eq(info.token_id, token_id);     // caller must pass the correct token_id
+        assert_eq(info.token_id, 1field);       // USDCx circles only
 
         let member_key: field = BHP256::hash_to_field(MemberKey { circle_id: circle_id, member_addr: contributor });
         assert(members.contains(member_key));
@@ -377,37 +377,122 @@ program zk_circles_v8.aleo {
         contributions.set(contrib_key, true);
     }
 
-    // Pays out the winner for this cycle by transferring ARC-20 tokens from
-    // THIS PROGRAM'S token balance (accumulated via contribute_token) to the claimer.
-    async transition claim_payout_token(
+    // Pays out the USDCx winner for this cycle from THIS PROGRAM'S USDCx balance.
+    async transition claim_payout_usdcx(
         membership: CircleMembership,
         public cycle: u8,
-        public payout_amount: u64,
-        public token_id: field
+        public payout_amount: u64
     ) -> (PayoutReceipt, Future) {
-        let tf: Future = token_registry.aleo/transfer_public(token_id, self.signer, payout_amount as u128);
+        let tf: Future = test_usdcx_stablecoin.aleo/transfer_public(self.signer, payout_amount as u128);
 
         let receipt: PayoutReceipt = PayoutReceipt {
             owner: self.signer,
             circle_id: membership.circle_id,
             cycle: cycle
         };
-        return (receipt, finalize_claim_payout_token(tf, membership.circle_id, cycle, self.signer, payout_amount, token_id));
+        return (receipt, finalize_claim_payout_usdcx(tf, membership.circle_id, cycle, self.signer, payout_amount));
     }
 
-    async function finalize_claim_payout_token(
+    async function finalize_claim_payout_usdcx(
         tf: Future,
         circle_id: field,
         cycle: u8,
         claimer: address,
-        payout_amount: u64,
-        token_id: field
+        payout_amount: u64
     ) {
         let info: CircleInfo = circles.get(circle_id);
         assert_eq(info.status, 1u8);
         assert_eq(info.current_cycle, cycle);
-        assert_neq(info.token_id, 0field);        // ARC-20 circles only
-        assert_eq(info.token_id, token_id);       // caller must pass the correct token_id
+        assert_eq(info.token_id, 1field);         // USDCx circles only
+
+        let expected: u64 = info.contribution_amount * (info.max_members as u64);
+        assert_eq(payout_amount, expected);
+
+        let key: field = BHP256::hash_to_field(MemberKey { circle_id: circle_id, member_addr: claimer });
+        let join_order: u8 = members.get(key);
+        assert_eq(join_order, cycle);
+
+        tf.await();
+
+        let next_cycle: u8 = cycle + 1u8;
+        let is_done: bool = next_cycle > info.total_cycles;
+
+        circles.set(circle_id, CircleInfo {
+            contribution_amount: info.contribution_amount,
+            max_members: info.max_members,
+            total_cycles: info.total_cycles,
+            current_cycle: is_done ? cycle : next_cycle,
+            members_joined: info.members_joined,
+            status: is_done ? 2u8 : 1u8,
+            token_id: info.token_id
+        });
+    }
+
+    // ── USAD contributions (test_usad_stablecoin.aleo, token_id = 2field) ───────
+    // Transfers USAD from the signer's public balance to THIS PROGRAM'S address.
+    async transition contribute_usad(
+        membership: CircleMembership,
+        public cycle: u8
+    ) -> (CircleMembership, ContributionReceipt, Future) {
+        let tf: Future = test_usad_stablecoin.aleo/transfer_public_as_signer(self.address, membership.contribution_amount as u128);
+
+        let receipt: ContributionReceipt = ContributionReceipt {
+            owner: self.signer,
+            circle_id: membership.circle_id,
+            cycle: cycle,
+            amount: membership.contribution_amount
+        };
+        return (membership, receipt, finalize_contribute_usad(tf, membership.circle_id, cycle, self.signer));
+    }
+
+    async function finalize_contribute_usad(
+        tf: Future,
+        circle_id: field,
+        cycle: u8,
+        contributor: address
+    ) {
+        tf.await();
+
+        let info: CircleInfo = circles.get(circle_id);
+        assert_eq(info.status, 1u8);
+        assert_eq(info.current_cycle, cycle);
+        assert_eq(info.token_id, 2field);       // USAD circles only
+
+        let member_key: field = BHP256::hash_to_field(MemberKey { circle_id: circle_id, member_addr: contributor });
+        assert(members.contains(member_key));
+
+        let contrib_key: field = BHP256::hash_to_field(ContribKey { circle_id: circle_id, cycle: cycle, member_addr: contributor });
+        assert(!contributions.get_or_use(contrib_key, false));
+        contributions.set(contrib_key, true);
+    }
+
+    // Pays out the USAD winner for this cycle from THIS PROGRAM'S USAD balance.
+    async transition claim_payout_usad(
+        membership: CircleMembership,
+        public cycle: u8,
+        public payout_amount: u64
+    ) -> (PayoutReceipt, Future) {
+        let tf: Future = test_usad_stablecoin.aleo/transfer_public(self.signer, payout_amount as u128);
+
+        let receipt: PayoutReceipt = PayoutReceipt {
+            owner: self.signer,
+            circle_id: membership.circle_id,
+            cycle: cycle
+        };
+        return (receipt, finalize_claim_payout_usad(tf, membership.circle_id, cycle, self.signer, payout_amount));
+    }
+
+    async function finalize_claim_payout_usad(
+        tf: Future,
+        circle_id: field,
+        cycle: u8,
+        claimer: address,
+        payout_amount: u64
+    ) {
+        let info: CircleInfo = circles.get(circle_id);
+        assert_eq(info.status, 1u8);
+        assert_eq(info.current_cycle, cycle);
+        assert_eq(info.token_id, 2field);         // USAD circles only
 
         let expected: u64 = info.contribution_amount * (info.max_members as u64);
         assert_eq(payout_amount, expected);
