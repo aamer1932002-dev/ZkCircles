@@ -1,14 +1,14 @@
 /**
- * useContributeToken — ARC-20 stablecoin contribution via token_registry.aleo.
+ * useContributeToken — stablecoin contribution via direct program imports (v9).
  *
- * Parallels useContribute.ts but calls the `contribute_token` Leo transition,
- * passing the circle's token_id alongside the membership record and cycle.
- * The caller (CircleDetail) must supply the tokenId from circle.tokenId.
+ * Parallels useContribute.ts but dispatches to `contribute_usdcx` or `contribute_usad`
+ * based on the circle's tokenId (1field = USDCx, 2field = USAD).
+ * Falls back to the credits `contribute` transition for tokenId = 0field.
  *
  * Flow:
  *   1. Resolve CircleMembership record (cache → wallet → chain)
  *   2. Query on-chain circle state for current cycle
- *   3. executeTransaction → contribute_token(membership, cycle, token_id)
+ *   3. executeTransaction → contribute_usdcx / contribute_usad (membership, cycle)
  *   4. Track confirmation, update cache and backend
  */
 import { useState, useCallback } from 'react'

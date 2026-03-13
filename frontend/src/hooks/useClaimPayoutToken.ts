@@ -1,15 +1,15 @@
 /**
- * useClaimPayoutToken — ARC-20 stablecoin payout claim via token_registry.aleo.
+ * useClaimPayoutToken — stablecoin payout claim via direct program imports (v9).
  *
- * Parallels useClaimPayout.ts but calls the `claim_payout_token` Leo transition,
- * passing the circle's token_id alongside the membership record, cycle, and payout amount.
- * The caller (CircleDetail) must supply tokenId from circle.tokenId.
+ * Parallels useClaimPayout.ts but dispatches to `claim_payout_usdcx` or `claim_payout_usad`
+ * based on the circle's tokenId (1field = USDCx, 2field = USAD).
+ * Falls back to the credits `claim_payout` transition for tokenId = 0field.
  *
  * Flow:
  *   1. Resolve CircleMembership record (cache → wallet → chain)
  *   2. Query on-chain circle state for current cycle + payout amount
  *   3. Verify all members have contributed and it's this user's turn
- *   4. executeTransaction → claim_payout_token(membership, cycle, payout_amount, token_id)
+ *   4. executeTransaction → claim_payout_usdcx / claim_payout_usad (membership, cycle, payout_amount)
  *   5. Track confirmation, update caches and backend
  */
 import { useState, useCallback } from 'react'

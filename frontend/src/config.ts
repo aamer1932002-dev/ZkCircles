@@ -29,23 +29,15 @@ export const FEE_TRANSFER     =   500_000   // 0.5 ALEO
 export const FEE_VERIFY       =   300_000   // 0.3 ALEO
 export const FEE_DISPUTE      =   300_000   // 0.3 ALEO  (flag_missed_contribution)
 
-// ── ARC-20 token support (token_registry.aleo) ───────────────────────────────
-// token_id = 0field means Aleo native credits (no token_registry involved).
-// Non-zero token_ids refer to ARC-20 tokens registered in token_registry.aleo.
-//
-// To find the correct token_ids on testnet, query the registry:
-//   snarkos developer execute token_registry.aleo get_token <token_id> \
-//     --network testnet --query https://api.explorer.provable.com/v1/testnet
-//
-// TODO: Replace placeholders with real testnet token_ids once USDCx and USAD
-// are registered in token_registry.aleo on Aleo testnet.
-export const TOKEN_ID_ALEO = '0field'
-
-// USDCx — test_usdcx_stablecoin.aleo (token_id = 1field in our contract)
+// ── Stablecoin token support (direct program imports, v9) ────────────────────
+// token_id = 0field means Aleo native credits.
+// 1field = test_usdcx_stablecoin.aleo (USDCx on testnet)
+// 2field = test_usad_stablecoin.aleo  (USAD on testnet)
+// These are internal identifiers used inside zk_circles_v9.aleo to route
+// to the correct stablecoin transition — NOT token_registry token IDs.
+export const TOKEN_ID_ALEO  = '0field'
 export const TOKEN_ID_USDCX = '1field'
-
-// USAD — test_usad_stablecoin.aleo (token_id = 2field in our contract)
-export const TOKEN_ID_USAD = '2field'
+export const TOKEN_ID_USAD  = '2field'
 
 export interface TokenConfig {
   tokenId: string
