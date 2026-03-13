@@ -15,6 +15,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { useMyCircles } from '../hooks/useMyCircles'
+import { getTokenConfig } from '../config'
 
 const statusLabels = {
   0: { label: 'Forming', color: 'badge-amber' },
@@ -114,7 +115,7 @@ export default function MyCircles() {
                       {circle.name || `Circle ${circle.id.slice(0, 8)}…`}
                     </p>
                     <p className="text-xs text-forest-600">
-                      Claim payout — {((circle.contributionAmount * circle.maxMembers) / 1_000_000).toFixed(2)} ALEO ready
+                      Claim payout — {((circle.contributionAmount * circle.maxMembers) / 1_000_000).toFixed(2)} {getTokenConfig(circle.tokenId).symbol} ready
                     </p>
                   </div>
                   <ArrowRight className="w-4 h-4 text-forest-500 ml-auto shrink-0" />
@@ -134,7 +135,7 @@ export default function MyCircles() {
                       {circle.name || `Circle ${circle.id.slice(0, 8)}…`}
                     </p>
                     <p className="text-xs text-terra-600">
-                      Contribute {(circle.contributionAmount / 1_000_000).toFixed(3)} ALEO · Cycle {circle.currentCycle}
+                      Contribute {(circle.contributionAmount / 1_000_000).toFixed(3)} {getTokenConfig(circle.tokenId).symbol} · Cycle {circle.currentCycle}
                     </p>
                   </div>
                   <ArrowRight className="w-4 h-4 text-terra-500 ml-auto shrink-0" />
@@ -174,7 +175,7 @@ export default function MyCircles() {
               <div className="font-display text-2xl font-bold text-terra-600">
                 {circles.reduce((acc, c) => acc + (c.totalContributed ?? 0), 0) / 1_000_000}
               </div>
-              <div className="text-sm text-midnight-600">Total Saved (ALEO)</div>
+              <div className="text-sm text-midnight-600">Total Saved</div>
             </div>
           </motion.div>
         )}
@@ -249,7 +250,7 @@ export default function MyCircles() {
                           </div>
                           <div className="flex items-center gap-2">
                             <Coins className="w-4 h-4" />
-                            <span>{(circle.contributionAmount / 1_000_000).toFixed(3)} ALEO/cycle</span>
+                            <span>{(circle.contributionAmount / 1_000_000).toFixed(3)} {getTokenConfig(circle.tokenId).symbol}/cycle</span>
                           </div>
                           <div className="flex items-center gap-2">
                             <Clock className="w-4 h-4" />

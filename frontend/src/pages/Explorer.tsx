@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { 
+import {
   Search, 
   Users, 
   Coins, 
@@ -13,6 +13,7 @@ import {
   TrendingUp
 } from 'lucide-react'
 import { useCircles } from '../hooks/useCircles'
+import { getTokenConfig } from '../config'
 
 const statusFilters = [
   { value: 'all', label: 'All' },
@@ -88,7 +89,7 @@ export default function Explorer() {
             <div className="font-display text-2xl font-bold text-midnight-900">
               {((stats.totalVolume || 0) / 1_000_000).toFixed(1)}
             </div>
-            <div className="text-sm text-midnight-500">ALEO Volume</div>
+            <div className="text-sm text-midnight-500">Total Volume</div>
           </div>
           <div className="card text-center">
             <Globe className="w-6 h-6 text-midnight-500 mx-auto mb-2" />
@@ -220,7 +221,7 @@ export default function Explorer() {
                           Per Cycle
                         </span>
                         <span className="font-medium text-midnight-900">
-                          {(circle.contributionAmount / 1_000_000).toFixed(3)} ALEO
+                          {(circle.contributionAmount / 1_000_000).toFixed(3)} {getTokenConfig(circle.tokenId).symbol}
                         </span>
                       </div>
                       <div className="flex items-center justify-between text-sm">

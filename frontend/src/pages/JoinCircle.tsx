@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { useJoinCircle } from '../hooks/useJoinCircle'
 import { useCircles } from '../hooks/useCircles'
+import { getTokenConfig } from '../config'
 
 export default function JoinCircle() {
   const { circleId: urlCircleId } = useParams()
@@ -185,7 +186,7 @@ export default function JoinCircle() {
                           <div className="flex items-center gap-2 text-sm text-midnight-600">
                             <Coins className="w-4 h-4" />
                             <span>
-                              {(circle.contributionAmount / 1_000_000).toFixed(3)} ALEO/cycle
+                              {(circle.contributionAmount / 1_000_000).toFixed(3)} {getTokenConfig(circle.tokenId).symbol}/cycle
                             </span>
                           </div>
                           <div className="flex items-center gap-2 text-sm text-midnight-600">
