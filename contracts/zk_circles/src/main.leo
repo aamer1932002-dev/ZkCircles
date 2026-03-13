@@ -28,11 +28,15 @@
 //   - zkEmail identity: register_email_commitment, verify_email_commitment
 //   - email_commitments / email_verified mappings
 
+// v12 additions:
+//   - claim_payout / claim_payout_usdcx / claim_payout_usad now re-issue the
+//     CircleMembership record so members can contribute in subsequent cycles
+
 import credits.aleo;
 import test_usdcx_stablecoin.aleo;
 import test_usad_stablecoin.aleo;
 
-program zk_circles_v11.aleo {
+program zk_circles_v12.aleo {
 
     // circle status values
     // 0 = forming   (accepting members)
@@ -295,7 +299,7 @@ program zk_circles_v11.aleo {
         membership: CircleMembership,
         public cycle: u8,
         public payout_amount: u64
-    ) -> (PayoutReceipt, Future) {
+    ) -> (CircleMembership, PayoutReceipt, Future) {
         // Program sends payout from its own public balance to the winner
         let tf: Future = credits.aleo/transfer_public(self.signer, payout_amount);
 
@@ -304,7 +308,7 @@ program zk_circles_v11.aleo {
             circle_id: membership.circle_id,
             cycle: cycle
         };
-        return (receipt, finalize_claim_payout(tf, membership.circle_id, cycle, self.signer, payout_amount));
+        return (membership, receipt, finalize_claim_payout(tf, membership.circle_id, cycle, self.signer, payout_amount));
     }
 
     async function finalize_claim_payout(
@@ -459,7 +463,7 @@ program zk_circles_v11.aleo {
         membership: CircleMembership,
         public cycle: u8,
         public payout_amount: u64
-    ) -> (PayoutReceipt, Future) {
+    ) -> (CircleMembership, PayoutReceipt, Future) {
         let tf: Future = test_usdcx_stablecoin.aleo/transfer_public(self.signer, payout_amount as u128);
 
         let receipt: PayoutReceipt = PayoutReceipt {
@@ -467,7 +471,7 @@ program zk_circles_v11.aleo {
             circle_id: membership.circle_id,
             cycle: cycle
         };
-        return (receipt, finalize_claim_payout_usdcx(tf, membership.circle_id, cycle, self.signer, payout_amount));
+        return (membership, receipt, finalize_claim_payout_usdcx(tf, membership.circle_id, cycle, self.signer, payout_amount));
     }
 
     async function finalize_claim_payout_usdcx(
@@ -557,7 +561,7 @@ program zk_circles_v11.aleo {
         membership: CircleMembership,
         public cycle: u8,
         public payout_amount: u64
-    ) -> (PayoutReceipt, Future) {
+    ) -> (CircleMembership, PayoutReceipt, Future) {
         let tf: Future = test_usad_stablecoin.aleo/transfer_public(self.signer, payout_amount as u128);
 
         let receipt: PayoutReceipt = PayoutReceipt {
@@ -565,7 +569,7 @@ program zk_circles_v11.aleo {
             circle_id: membership.circle_id,
             cycle: cycle
         };
-        return (receipt, finalize_claim_payout_usad(tf, membership.circle_id, cycle, self.signer, payout_amount));
+        return (membership, receipt, finalize_claim_payout_usad(tf, membership.circle_id, cycle, self.signer, payout_amount));
     }
 
     async function finalize_claim_payout_usad(
