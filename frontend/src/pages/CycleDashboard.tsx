@@ -12,61 +12,76 @@ import {
   Loader2,
   AlertTriangle,
 } from 'lucide-react'
-import { BACKEND_URL, getTokenConfig } from '../config'
+import { getTokenConfig } from '../config'
+import { getCircleDetail, CircleData, MemberData } from '../services/api'
 import { shortenAddress, formatAleo } from '../utils/aleo-utils'
 
-interface CycleHistory {
-  cycle: number
-  expected: number
-  actual: number
-  completionRate: number
-}
-
-interface MemberContribution {
-  address: string
-  shortAddress: string
-  contributed: number
-  expected: number
-  missedCycles: number
-  cycles: boolean[]
-}
-
-interface PayoutEntry {
-  cycle: number
-  recipient: string
-  amount: number
-  status: 'completed' | 'current' | 'upcoming'
-}
-
-interface DashboardData {
-  circleId: string
-  circleName: string
-  totalCycles: number
-  completedCycles: number
-  currentCycle: number
-  totalContributed: number
-  totalPaidOut: number
-  activeMembers: number
-  completionPercentage: number
+interface DashboardState {
+  circle: CircleData
+  members: MemberData[]
+  cycleHistory: { cycle: number; expected: number; actual: number; completionRate: number }[]
+  memberGrid: { address: string; short: string; cycles: boolean[]; missed: number }[]
+  payoutSchedule: { cycle: number; recipient: string; amount: number; status: 'completed' | 'current' | 'upcoming' }[]
   healthScore: number
-  cycleHistory: CycleHistory[]
-  memberContributions: MemberContribution[]
-  payoutSchedule: PayoutEntry[]
-  tokenId?: string
+  totalContributed: number
+}
+
+function buildDashboard(circle: CircleData, members: MemberData[]): DashboardState {
+  const total = circle.totalCycles || circle.maxMembers
+  const contribAmount = circle.contributionAmount
+  const current = circle.currentCycle || 1
+
+  const cycleHistory = Array.from({ length: total }, (_, i) => {
+    const c = i + 1
+    const contributed = members.filter(m => m.contributedCycles?.includes(c)).length
+    const expected = members.length * contribAmount
+    const actual = contributed * contribAmount
+    return { cycle: c, expected, actual, completionRate: expected > 0 ? Math.round((actual / expected) * 100) : 0 }
+  })
+
+  const memberGrid = members.map(m => {
+    const cycles = Array.from({ length: total }, (_, i) => m.contributedCycles?.includes(i + 1) ?? false)
+    const missed = cycles.slice(0, Math.max(current - 1, 0)).filter(c => !c).length
+    return { address: m.address, short: shortenAddress(m.address), cycles, missed }
+  })
+
+  const payoutSchedule = members
+    .slice()
+    .sort((a, b) => a.joinOrder - b.joinOrder)
+    .map(m => ({
+      cycle: m.joinOrder,
+      recipient: m.address,
+      amount: contribAmount * members.length,
+      status: (m.hasReceivedPayout ? 'completed' : m.joinOrder === current ? 'current' : m.joinOrder < current ? 'completed' : 'upcoming') as 'completed' | 'current' | 'upcoming',
+    }))
+
+  const totalContributed = members.reduce((s, m) => s + m.totalContributed, 0)
+  const completionPct = total > 0 ? (Math.max(current - 1, 0) / total) * 100 : 0
+  const memberPct = (members.length / circle.maxMembers) * 40
+  const healthScore = Math.min(100, Math.round(memberPct + completionPct * 0.4 + (totalContributed > 0 ? 20 : 0)))
+
+  return { circle, members, cycleHistory, memberGrid, payoutSchedule, healthScore, totalContributed }
 }
 
 export default function CycleDashboard() {
   const { circleId } = useParams()
-  const [data, setData] = useState<DashboardData | null>(null)
+  const [dash, setDash] = useState<DashboardState | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!circleId) return
     setIsLoading(true)
-    fetch(`${BACKEND_URL}/api/circles/${circleId}/analytics`)
-      .then(r => r.json())
-      .then(d => { setData(d); setIsLoading(false) })
-      .catch(() => setIsLoading(false))
+    setError(null)
+    getCircleDetail(circleId)
+      .then(({ circle, members }) => {
+        setDash(buildDashboard(circle, members))
+        setIsLoading(false)
+      })
+      .catch(err => {
+        setError(err.message || 'Failed to load dashboard')
+        setIsLoading(false)
+      })
   }, [circleId])
 
   if (isLoading) {
@@ -77,13 +92,13 @@ export default function CycleDashboard() {
     )
   }
 
-  if (!data) {
+  if (error || !dash) {
     return (
       <div className="min-h-[70vh] flex items-center justify-center">
         <div className="text-center">
           <AlertTriangle className="w-12 h-12 text-amber-500 mx-auto mb-4" />
-          <p className="text-midnight-600">Dashboard data not available.</p>
-          <Link to={`/circle/${circleId}`} className="text-amber-600 hover:underline mt-2 inline-block">
+          <p className="text-midnight-600 mb-2">{error || 'Dashboard data not available.'}</p>
+          <Link to={`/circle/${circleId}`} className="text-amber-600 hover:underline">
             Back to circle
           </Link>
         </div>
@@ -91,7 +106,11 @@ export default function CycleDashboard() {
     )
   }
 
-  const tokenConfig = getTokenConfig(data.tokenId)
+  const { circle, cycleHistory, memberGrid, payoutSchedule, healthScore, totalContributed } = dash
+  const total = circle.totalCycles || circle.maxMembers
+  const current = circle.currentCycle || 1
+  const completionPct = total > 0 ? Math.round((Math.max(current - 1, 0) / total) * 100) : 0
+  const tokenConfig = getTokenConfig(circle.tokenId)
   const symbol = tokenConfig.symbol
 
   return (
@@ -109,7 +128,7 @@ export default function CycleDashboard() {
             Cycle Dashboard
           </h1>
           <p className="text-midnight-600">
-            {data.circleName || `Circle ${circleId?.slice(0, 12)}...`}
+            {circle.name || `Circle ${circleId?.slice(0, 12)}...`}
           </p>
         </motion.div>
 
@@ -121,10 +140,10 @@ export default function CycleDashboard() {
           className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8"
         >
           {[
-            { label: 'Health Score', value: `${data.healthScore}%`, icon: TrendingUp, color: data.healthScore >= 80 ? 'text-green-600' : data.healthScore >= 50 ? 'text-amber-600' : 'text-red-500' },
-            { label: 'Completion', value: `${data.completionPercentage}%`, icon: CheckCircle2, color: 'text-forest-600' },
-            { label: 'Total Contributed', value: `${formatAleo(data.totalContributed)} ${symbol}`, icon: Award, color: 'text-amber-600' },
-            { label: 'Active Members', value: data.activeMembers, icon: Users, color: 'text-blue-600' },
+            { label: 'Health Score', value: `${healthScore}%`, icon: TrendingUp, color: healthScore >= 80 ? 'text-green-600' : healthScore >= 50 ? 'text-amber-600' : 'text-red-500' },
+            { label: 'Completion', value: `${completionPct}%`, icon: CheckCircle2, color: 'text-forest-600' },
+            { label: 'Total Contributed', value: `${formatAleo(totalContributed)} ${symbol}`, icon: Award, color: 'text-amber-600' },
+            { label: 'Active Members', value: dash.members.length, icon: Users, color: 'text-blue-600' },
           ].map((stat, i) => (
             <div key={i} className="card p-4">
               <div className="flex items-center gap-2 mb-1">
@@ -147,17 +166,16 @@ export default function CycleDashboard() {
             Cycle Timeline
           </h2>
           <div className="space-y-3">
-            {data.cycleHistory.map((c) => {
-              const isCurrent = c.cycle === data.currentCycle
-              const isCompleted = c.cycle < data.currentCycle
-              const isFuture = c.cycle > data.currentCycle
+            {cycleHistory.map((c) => {
+              const isCurrent = c.cycle === current
+              const isCompleted = c.cycle < current
+              const isFuture = c.cycle > current
 
               return (
                 <div key={c.cycle} className={`flex items-center gap-4 p-3 rounded-xl transition-all ${
                   isCurrent ? 'bg-amber-50 ring-2 ring-amber-300' :
                   isCompleted ? 'bg-green-50/50' : 'bg-cream-100/50'
                 }`}>
-                  {/* Cycle number indicator */}
                   <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
                     isCompleted ? 'bg-green-100 text-green-700' :
                     isCurrent ? 'bg-amber-100 text-amber-700' :
@@ -221,7 +239,7 @@ export default function CycleDashboard() {
               <thead>
                 <tr>
                   <th className="text-left text-sm text-midnight-500 pb-3 pr-4">Member</th>
-                  {Array.from({ length: data.totalCycles }, (_, i) => (
+                  {Array.from({ length: total }, (_, i) => (
                     <th key={i} className="text-center text-xs text-midnight-500 pb-3 px-1 min-w-[36px]">
                       C{i + 1}
                     </th>
@@ -230,15 +248,13 @@ export default function CycleDashboard() {
                 </tr>
               </thead>
               <tbody>
-                {data.memberContributions.map((m, idx) => (
+                {memberGrid.map((m, idx) => (
                   <tr key={idx} className="border-t border-cream-200">
                     <td className="py-2 pr-4">
-                      <span className="text-sm font-mono text-midnight-700">
-                        {m.shortAddress || shortenAddress(m.address)}
-                      </span>
+                      <span className="text-sm font-mono text-midnight-700">{m.short}</span>
                     </td>
                     {m.cycles.map((contributed, cycleIdx) => {
-                      const isFuture = cycleIdx + 1 > data.currentCycle
+                      const isFuture = cycleIdx + 1 > current
                       return (
                         <td key={cycleIdx} className="py-2 px-1 text-center">
                           {isFuture ? (
@@ -256,8 +272,8 @@ export default function CycleDashboard() {
                       )
                     })}
                     <td className="py-2 pl-4 text-right">
-                      <span className={`text-sm font-medium ${m.missedCycles > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                        {m.missedCycles}
+                      <span className={`text-sm font-medium ${m.missed > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                        {m.missed}
                       </span>
                     </td>
                   </tr>
@@ -278,7 +294,7 @@ export default function CycleDashboard() {
             Payout Schedule
           </h2>
           <div className="space-y-3">
-            {data.payoutSchedule.map((p, i) => (
+            {payoutSchedule.map((p, i) => (
               <div
                 key={i}
                 className={`flex items-center justify-between p-3 rounded-xl ${
