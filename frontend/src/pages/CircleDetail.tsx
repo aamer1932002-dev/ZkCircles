@@ -46,7 +46,7 @@ export default function CircleDetail() {
   const { contribute, isContributing, transactionStatus: contributeStatus } = useContribute()
   const { claimPayout, isClaiming, transactionStatus: claimStatus } = useClaimPayout()
   const { transferMembership, isTransferring, transactionStatus: transferStatus } = useTransferMembership()
-  const { checkMembershipLocally, verifyMembership, isVerifying } = useVerifyMembership()
+  const { verifyMembership, isVerifying } = useVerifyMembership()
   const { joinCircle, isJoining, transactionStatus: joinStatus } = useJoinCircle()
   const { notifyPayoutTurn, notifyContributionDue, notifyCircleFull, isCircleEnabled } = useNotifications()
   const notifiedRef = useRef<Set<string>>(new Set())
@@ -138,31 +138,13 @@ export default function CircleDetail() {
 
   const handleVerifyMembership = async () => {
     if (!circleId || !connected) return
-    
-    try {
-      // First do a fast local check
-      const localResult = await checkMembershipLocally(circleId)
-      setMembershipVerified(localResult)
-      if (!localResult) {
-        toast.error('No membership record found for this circle')
-        return
-      }
-      toast.success('Local membership check passed! Submit on-chain proof?', {
-        duration: 5000,
-      })
-    } catch (error) {
-      toast.error('Failed to verify membership.')
-    }
-  }
-
-  const handleVerifyOnChain = async () => {
-    if (!circleId || !connected) return
     try {
       const result = await verifyMembership(circleId)
       if (result.success && result.isVerified) {
         setMembershipVerified(true)
         toast.success(`Membership verified on-chain! TX: ${result.transactionId?.slice(0, 12)}...`)
       } else {
+        setMembershipVerified(false)
         toast.error(result.error || 'Membership not verified')
       }
     } catch (error) {
@@ -650,7 +632,7 @@ export default function CircleDetail() {
                 <div className="border-t border-cream-200 pt-4 mt-4 space-y-3">
                   <h4 className="text-sm font-semibold text-midnight-700 mb-3">Membership Actions</h4>
                   
-                  {/* Verify Membership */}
+                  {/* Verify Membership — on-chain proof */}
                   <button
                     onClick={handleVerifyMembership}
                     disabled={isVerifying}
@@ -665,22 +647,10 @@ export default function CircleDetail() {
                     ) : (
                       <ShieldCheck className="w-4 h-4" />
                     )}
-                    {membershipVerified === true ? 'Membership Verified (Local)' :
+                    {membershipVerified === true ? 'Membership Verified On-Chain' :
                      membershipVerified === false ? 'Not a Member' :
-                     'Verify Membership (Local)'}
+                     'Verify Membership (On-Chain)'}
                   </button>
-
-                  {/* On-chain verify */}
-                  {membershipVerified === true && (
-                    <button
-                      onClick={handleVerifyOnChain}
-                      disabled={isVerifying}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-xl transition-colors text-sm font-medium"
-                    >
-                      {isVerifying ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
-                      Generate On-Chain Proof
-                    </button>
-                  )}
 
                   {/* Transfer Membership */}
                   <button

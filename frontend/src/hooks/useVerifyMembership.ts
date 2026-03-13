@@ -1,6 +1,5 @@
 import { useState, useCallback } from 'react'
 import { useWallet } from '@provablehq/aleo-wallet-adaptor-react'
-import { getCachedMembership } from '../utils/membershipCache'
 import { PROGRAM_ID, FEE_VERIFY } from '../config'
 import { isStalePermissionsError, STALE_PERMISSIONS_USER_MSG, dispatchStalePermissionsEvent } from '../utils/walletErrors'
 
@@ -14,7 +13,7 @@ interface VerifyResult {
 }
 
 export function useVerifyMembership() {
-  const { connected, address, executeTransaction, requestRecords, disconnect } = useWallet()
+  const { connected, address, executeTransaction, disconnect } = useWallet()
   const [isVerifying, setIsVerifying] = useState(false)
   const [transactionStatus, setTransactionStatus] = useState<string | null>(null)
 
@@ -64,42 +63,5 @@ export function useVerifyMembership() {
     }
   }, [connected, address, executeTransaction])
 
-  /**
-   * Quick local check — looks in cache first, then requestRecords.
-   * Does NOT submit any on-chain transaction.
-   */
-  const checkMembershipLocally = useCallback(async (circleId: string): Promise<boolean> => {
-    if (!connected || !address) return false
-
-    // Check cache (always a CircleMembership plaintext)
-    if (getCachedMembership(address, circleId)) return true
-
-    // Fall back to requestRecords
-    if (!requestRecords) return false
-    try {
-      const records: any[] = (await (requestRecords as any)(PROGRAM_ID, true)) || []
-      const bareId = circleId.replace(/field$/i, '')
-      for (const r of records) {
-        // Must be CircleMembership: has contribution_amount, no cycle field
-        const isMemRecord = r.data
-          ? ('contribution_amount' in r.data && !('cycle' in r.data))
-          : true
-        if (!isMemRecord) continue
-        if (r.data?.circle_id) {
-          const sid = String(r.data.circle_id).replace('.private', '').replace('.public', '')
-          if (sid === circleId || sid === bareId || sid.replace(/field$/i, '') === bareId) return true
-        }
-        const pt = r.recordPlaintext || r.plaintext || r.record
-        if (pt && typeof pt === 'string'
-          && (pt.includes(circleId) || pt.includes(bareId))
-          && pt.includes('contribution_amount')
-          && !/\bcycle\b.*:/.test(pt)) return true
-      }
-      return false
-    } catch {
-      return false
-    }
-  }, [connected, address, requestRecords])
-
-  return { verifyMembership, checkMembershipLocally, isVerifying, transactionStatus }
+  return { verifyMembership, isVerifying, transactionStatus }
 }
