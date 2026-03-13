@@ -15,6 +15,10 @@ out/
 *.avm
 outputs/
 .leo/
+# Allow contract import files to be tracked despite build/ being ignored
+!contracts/zk_circles/build/
+!contracts/zk_circles/build/imports/
+!contracts/zk_circles/build/imports/*.aleo
 
 # Environment variables
 .env
