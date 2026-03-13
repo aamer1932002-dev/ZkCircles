@@ -32,6 +32,7 @@ export function useZkEmailVerification() {
   const [step, setStep] = useState<'idle' | 'registering' | 'sending_code' | 'verifying' | 'done'>('idle')
   const [testCode, setTestCode] = useState<string | null>(null)
   const [emailForVerify, setEmailForVerify] = useState<string | null>(null)
+  const [codeSending, setCodeSending] = useState(false)
 
   // Check status on mount — jump straight to done if already verified
   useEffect(() => {
@@ -98,29 +99,32 @@ export function useZkEmailVerification() {
 
       setTransactionStatus('Registered on-chain! Sending verification code...')
 
-      // Register with backend
-      await registerEmailCommitment({
-        address,
-        emailHash,
-        transactionId: confirmation.txId || txId,
-        email: normalizedEmail,
-      })
-
-      // Fetch the code BEFORE switching step — so testCode is in state when the UI renders
-      const codeResult = await sendEmailVerificationCode(address)
-      if (codeResult.testCode) {
-        setTestCode(codeResult.testCode)
-      }
-      if ((codeResult as any).emailError) {
-        console.error('[zkEmail] Email delivery failed:', (codeResult as any).emailError)
-      }
-
-      // NOW switch step — testCode is already set, UI will show it immediately
+      // Switch to step 2 immediately so the UI is never frozen
       setStatus(prev => ({ ...prev, registered: true, status: 1 }))
       setStep('sending_code')
-
       setIsProcessing(false)
       setTransactionStatus(null)
+      setCodeSending(true)
+
+      // Register with backend + fetch code in background (UI is already on step 2)
+      try {
+        await registerEmailCommitment({
+          address,
+          emailHash,
+          transactionId: confirmation.txId || txId,
+          email: normalizedEmail,
+        })
+        const codeResult = await sendEmailVerificationCode(address)
+        if (codeResult.testCode) setTestCode(codeResult.testCode)
+        if ((codeResult as any).emailError) {
+          console.error('[zkEmail] Email delivery failed:', (codeResult as any).emailError)
+        }
+      } catch (bgErr) {
+        console.error('[zkEmail] Background backend error:', bgErr)
+      } finally {
+        setCodeSending(false)
+      }
+
       return { success: true, transactionId: confirmation.txId || txId }
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Registration failed'
@@ -221,5 +225,6 @@ export function useZkEmailVerification() {
     status,
     step,
     testCode,
+    codeSending,
   }
 }

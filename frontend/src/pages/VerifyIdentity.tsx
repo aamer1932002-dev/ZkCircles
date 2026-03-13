@@ -33,6 +33,7 @@ export default function VerifyIdentity() {
     testCode,
     isProcessing,
     transactionStatus,
+    codeSending,
   } = useZkEmailVerification()
 
   const [email, setEmail] = useState('')
@@ -192,7 +193,12 @@ export default function VerifyIdentity() {
                   A 6-digit verification code has been generated for your account.
                 </p>
 
-                {testCode ? (
+                {codeSending ? (
+                  <div className="bg-cream-100 border border-amber-200 rounded-xl p-3 mb-4 flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 text-amber-500 animate-spin shrink-0" />
+                    <p className="text-amber-800 text-sm">Sending your verification code…</p>
+                  </div>
+                ) : testCode ? (
                   <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4">
                     <p className="text-amber-800 text-sm">
                       <strong>Email delivery unavailable</strong> — your code is shown here:
@@ -208,7 +214,7 @@ export default function VerifyIdentity() {
                     </button>
                   </div>
                 ) : (
-                  <div className="bg-green-50 border border-green-200 rounded-xl p-3 mb-4">
+                  <div className="bg-green-50 border border-green-200 rounded-xl p-3 mb-4"> {/* codeSending=false, testCode=null → email was sent */}
                     <p className="text-green-800 text-sm mb-2">
                       ✅ Verification code sent to your email. Check your inbox (and spam folder).
                     </p>
