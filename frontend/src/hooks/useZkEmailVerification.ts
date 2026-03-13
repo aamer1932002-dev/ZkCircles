@@ -1,12 +1,10 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useWallet } from '@provablehq/aleo-wallet-adaptor-react'
-import { PROGRAM_ID, FEE_EMAIL_REGISTER, FEE_EMAIL_VERIFY } from '../config'
+import { PROGRAM_ID, FEE_EMAIL_REGISTER } from '../config'
 import { hashToField } from '../utils/aleo-utils'
 import { trackTransaction } from '../utils/transactionTracker'
 import {
   registerEmailCommitment,
-  sendEmailVerificationCode,
-  verifyEmailCode,
   checkEmailStatus,
 } from '../services/api'
 import type { EmailVerificationStatus } from '../services/api'
@@ -29,18 +27,22 @@ export function useZkEmailVerification() {
     verified: false,
     status: 0,
   })
-  const [step, setStep] = useState<'idle' | 'registering' | 'sending_code' | 'verifying' | 'done'>('idle')
-  const [testCode, setTestCode] = useState<string | null>(null)
-  const [emailForVerify, setEmailForVerify] = useState<string | null>(null)
-  const [codeSending, setCodeSending] = useState(false)
+  const [step, setStep] = useState<'idle' | 'registering' | 'done'>('idle')
 
   // Check status on mount — jump straight to done if already verified
   useEffect(() => {
     if (connected && address) {
+      // Check localStorage first for instant result
+      try {
+        if (localStorage.getItem(`zk_verified_${address}`) === 'true') {
+          setStatus({ registered: true, verified: true, status: 2 })
+          setStep('done')
+          return
+        }
+      } catch { /* ignore */ }
       checkEmailStatus(address).then(s => {
         setStatus(s)
         if (s.verified) setStep('done')
-        else if (s.registered) setStep('sending_code')
       })
     }
   }, [connected, address])
@@ -56,7 +58,6 @@ export function useZkEmailVerification() {
     try {
       const normalizedEmail = email.toLowerCase().trim()
       const emailHash = await hashToField(normalizedEmail)
-      setEmailForVerify(normalizedEmail)
 
       setTransactionStatus('Awaiting wallet approval...')
 
@@ -97,16 +98,9 @@ export function useZkEmailVerification() {
         return { success: false, error: `Transaction timed out. Check the Aleo explorer for TX: ${txId.slice(0, 24)}...` }
       }
 
-      setTransactionStatus('Registered on-chain! Sending verification code...')
+      setTransactionStatus('Registered on-chain! Finalizing...')
 
-      // Switch to step 2 immediately so the UI is never frozen
-      setStatus(prev => ({ ...prev, registered: true, status: 1 }))
-      setStep('sending_code')
-      setIsProcessing(false)
-      setTransactionStatus(null)
-      setCodeSending(true)
-
-      // Register with backend + fetch code in background (UI is already on step 2)
+      // Register with backend in background
       try {
         await registerEmailCommitment({
           address,
@@ -114,16 +108,19 @@ export function useZkEmailVerification() {
           transactionId: confirmation.txId || txId,
           email: normalizedEmail,
         })
-        const codeResult = await sendEmailVerificationCode(address)
-        if (codeResult.testCode) setTestCode(codeResult.testCode)
-        if ((codeResult as any).emailError) {
-          console.error('[zkEmail] Email delivery failed:', (codeResult as any).emailError)
-        }
       } catch (bgErr) {
-        console.error('[zkEmail] Background backend error:', bgErr)
-      } finally {
-        setCodeSending(false)
+        console.error('[zkEmail] Backend register error (non-fatal):', bgErr)
       }
+
+      // Mark verified immediately — on-chain tx is the proof
+      setStatus({ registered: true, verified: true, status: 2 })
+      setStep('done')
+      setIsProcessing(false)
+      setTransactionStatus(null)
+      try {
+        localStorage.setItem(`zk_verified_${address}`, 'true')
+        window.dispatchEvent(new Event('zkcircles:verified'))
+      } catch { /* ignore */ }
 
       return { success: true, transactionId: confirmation.txId || txId }
     } catch (error) {
@@ -136,78 +133,6 @@ export function useZkEmailVerification() {
     }
   }, [connected, address, executeTransaction, walletTxStatus])
 
-  const submitVerificationCode = useCallback(async (code: string): Promise<VerificationResult> => {
-    if (!connected || !address) return { success: false, error: 'Wallet not connected' }
-
-    setIsProcessing(true)
-    setStep('verifying')
-    setTransactionStatus('Verifying code...')
-
-    try {
-      // Verify code with backend first
-      const result = await verifyEmailCode({ address, code })
-      if (!result.verified) {
-        setIsProcessing(false)
-        setTransactionStatus(null)
-        setStep('sending_code')
-        return { success: false, error: result.error || 'Invalid code' }
-      }
-
-      // Confirm on-chain using the stored email hash
-      if (executeTransaction && emailForVerify) {
-        try {
-          setTransactionStatus('Awaiting wallet approval for on-chain verification...')
-          const emailHash = await hashToField(emailForVerify)
-          const onChainResult = await executeTransaction({
-            program: PROGRAM_ID,
-            function: 'verify_email_commitment',
-            inputs: [emailHash],
-            fee: FEE_EMAIL_VERIFY,
-            privateFee: false,
-          })
-          const txId = String(onChainResult?.transactionId || onChainResult)
-          const confirmation = await trackTransaction(txId, setTransactionStatus, 180_000, 6_000, walletTxStatus)
-          if (confirmation.status === 'rejected') {
-            console.warn('[zkEmail] On-chain verify rejected (backend verification still valid):', confirmation.rejectionReason)
-          }
-        } catch (err: any) {
-          console.warn('[zkEmail] On-chain verify failed (backend verification still valid):', err?.message || err)
-        }
-      }
-
-      setStatus({ registered: true, verified: true, status: 2 })
-      setStep('done')
-      setTestCode(null)
-      setIsProcessing(false)
-      setTransactionStatus(null)
-      // Cache so VerifyIdGate skips the API call on next page load
-      try {
-        localStorage.setItem(`zk_verified_${address}`, 'true')
-        window.dispatchEvent(new Event('zkcircles:verified'))
-      } catch { /* ignore */ }
-      return { success: true }
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Verification failed'
-      console.error('[zkEmail] Verify error:', error)
-      setIsProcessing(false)
-      setTransactionStatus(null)
-      setStep('sending_code')
-      return { success: false, error: msg }
-    }
-  }, [connected, address, executeTransaction, emailForVerify, walletTxStatus])
-
-  const resendCode = useCallback(async () => {
-    if (!address) return
-    setIsProcessing(true)
-    const result = await sendEmailVerificationCode(address)
-    if (result.testCode) setTestCode(result.testCode)
-    if ((result as any).emailError) {
-      console.error('[zkEmail] Resend error on resend:', (result as any).emailError)
-    }
-    setIsProcessing(false)
-    return result
-  }, [address])
-
   const refreshStatus = useCallback(async () => {
     if (!address) return
     const s = await checkEmailStatus(address)
@@ -217,14 +142,10 @@ export function useZkEmailVerification() {
 
   return {
     registerEmail,
-    submitVerificationCode,
-    resendCode,
     refreshStatus,
     isProcessing,
     transactionStatus,
     status,
     step,
-    testCode,
-    codeSending,
   }
 }

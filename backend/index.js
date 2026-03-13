@@ -1578,6 +1578,7 @@ app.post('/api/email/register', async (req, res) => {
     const updateData = {
       email_hash: emailHash,
       on_chain_tx: transactionId,
+      status: 2,   // verified immediately — on-chain tx is the only proof needed
       expires_at: new Date(Date.now() + 24 * 3600000).toISOString(),
     }
     if (email) {
@@ -1593,7 +1594,7 @@ app.post('/api/email/register', async (req, res) => {
       if (error) throw error
     } else {
       // Insert new row
-      const insertData = { ...updateData, address: encrypt(address), status: 0 }
+      const insertData = { ...updateData, address: encrypt(address) }
       const { error } = await supabase.from('email_verifications').insert(insertData)
       if (error) {
         // Retry without email column if it doesn't exist yet
