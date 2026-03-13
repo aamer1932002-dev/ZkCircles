@@ -193,11 +193,7 @@ export default function CreateCircle() {
                     </option>
                   ))}
                 </select>
-                {formData.tokenId !== TOKEN_ID_ALEO && (
-                  <p className="mt-1 text-sm text-amber-600">
-                    ⚠ Token ID is a placeholder — update VITE_TOKEN_ID_{selectedToken.symbol.toUpperCase()} in your .env once the token is registered on Aleo testnet.
-                  </p>
-                )}
+
               </div>
 
               {/* Contribution Amount */}
