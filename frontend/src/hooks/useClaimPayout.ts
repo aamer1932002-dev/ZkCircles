@@ -6,7 +6,6 @@ import {
   setCachedMembership,
   clearCachedMembership,
   getJoinTxId,
-  setJoinTxId,
   fetchRecordCiphertextFromChain,
   fetchRecordByIndexFromChain,
   decryptAndCacheMembership,
