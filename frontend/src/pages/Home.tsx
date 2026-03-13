@@ -2,12 +2,8 @@ import { Link } from 'react-router-dom'
 import { useWallet } from '@provablehq/aleo-wallet-adaptor-react'
 import { motion } from 'framer-motion'
 import { 
-  Shield, 
   Zap, 
-  Globe, 
   ArrowRight, 
-  Lock,
-  Eye,
   CircleDot,
   CheckCircle2,
   XCircle
@@ -16,33 +12,6 @@ import ZkCirclesIllustration from '../components/ZkCirclesIllustration'
 
 export default function Home() {
   const { connected } = useWallet()
-
-  const features = [
-    {
-      icon: Shield,
-      title: 'Zero-Knowledge Privacy',
-      description: 'Your contributions, payouts, and financial history remain completely private through Aleo\'s ZK proofs.',
-      color: 'amber',
-    },
-    {
-      icon: Lock,
-      title: 'Trustless Guarantees',
-      description: 'Smart contracts ensure every member contributes and receives their fair share. No more defaults.',
-      color: 'forest',
-    },
-    {
-      icon: Eye,
-      title: 'Selective Disclosure',
-      description: 'Share view keys with auditors or lenders to prove your savings history without exposing everything.',
-      color: 'terra',
-    },
-    {
-      icon: Globe,
-      title: 'Global Access',
-      description: 'Join savings circles from anywhere. No banks, no borders, just community.',
-      color: 'amber',
-    },
-  ]
 
   const howItWorks = [
     {
@@ -65,12 +34,6 @@ export default function Home() {
       title: 'Build Credit History',
       description: 'Use your participation history to prove creditworthiness for traditional finance.',
     },
-  ]
-
-  const stats = [
-    { value: '100%', label: 'Privacy Preserved' },
-    { value: '0', label: 'Trust Required' },
-    { value: '∞', label: 'Global Reach' },
   ]
 
   return (
@@ -171,23 +134,7 @@ export default function Home() {
                 ))}
               </div>
 
-              {/* Stats */}
-              <div className="grid grid-cols-3 gap-6">
-                {stats.map((stat, index) => (
-                  <motion.div
-                    key={stat.label}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.3 + index * 0.1 }}
-                    className="text-center"
-                  >
-                    <div className="font-display text-2xl md:text-3xl font-bold text-amber-600">
-                      {stat.value}
-                    </div>
-                    <div className="text-sm text-midnight-500">{stat.label}</div>
-                  </motion.div>
-                ))}
-              </div>
+
             </motion.div>
 
             {/* Right content - Animated illustration */}
@@ -199,60 +146,6 @@ export default function Home() {
             >
               <ZkCirclesIllustration />
             </motion.div>
-          </div>
-        </div>
-      </section>
-
-      {/* Features Section */}
-      <section className="py-20 md:py-32 bg-white/70 relative">
-        <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-cream-50 to-white" />
-        
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-center mb-16"
-          >
-            <h2 className="section-title mb-4">
-              Why Choose ZkCircles?
-            </h2>
-            <p className="section-subtitle max-w-2xl mx-auto">
-              We combine the trusted tradition of community savings with cutting-edge 
-              privacy technology to create something truly revolutionary.
-            </p>
-          </motion.div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
-            {features.map((feature, index) => {
-              const Icon = feature.icon
-              const colorClasses = {
-                amber: 'bg-amber-100 text-amber-600 group-hover:bg-amber-200',
-                forest: 'bg-forest-100 text-forest-600 group-hover:bg-forest-200',
-                terra: 'bg-terra-100 text-terra-600 group-hover:bg-terra-200',
-              }
-              
-              return (
-                <motion.div
-                  key={feature.title}
-                  initial={{ opacity: 0, y: 30 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: index * 0.1 }}
-                  className="card-hover group"
-                >
-                  <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-4 transition-colors ${colorClasses[feature.color as keyof typeof colorClasses]}`}>
-                    <Icon className="w-7 h-7" />
-                  </div>
-                  <h3 className="font-display text-xl font-semibold text-midnight-900 mb-2">
-                    {feature.title}
-                  </h3>
-                  <p className="text-midnight-600">
-                    {feature.description}
-                  </p>
-                </motion.div>
-              )
-            })}
           </div>
         </div>
       </section>
