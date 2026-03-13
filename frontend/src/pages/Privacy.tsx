@@ -81,7 +81,7 @@ export default function Privacy() {
   ]
 
   return (
-    <div className="min-h-screen bg-cream-50">
+    <div className="min-h-screen">
       {/* Hero */}
       <section className="relative py-20 md:py-32 overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-midnight-950 to-midnight-900" />

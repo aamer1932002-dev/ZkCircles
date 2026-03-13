@@ -76,7 +76,7 @@ export default function Home() {
       {/* Hero Section */}
       <section className="relative min-h-[90vh] flex items-center">
         {/* Background decorations */}
-        <div className="absolute inset-0 bg-hero-gradient" />
+        <div className="absolute inset-0 bg-hero-gradient opacity-80" />
         <div className="absolute inset-0 bg-pattern-circles opacity-50" />
         
         {/* Floating circles decoration */}
@@ -183,7 +183,7 @@ export default function Home() {
       </section>
 
       {/* Features Section */}
-      <section className="py-20 md:py-32 bg-white relative">
+      <section className="py-20 md:py-32 bg-white/70 relative">
         <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-cream-50 to-white" />
         
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
@@ -237,7 +237,7 @@ export default function Home() {
       </section>
 
       {/* How It Works Section */}
-      <section className="py-20 md:py-32 bg-cream-50 relative overflow-hidden">
+      <section className="py-20 md:py-32 bg-cream-50/60 relative overflow-hidden">
         {/* Decorative elements */}
         <div className="absolute -top-20 -right-20 w-80 h-80 bg-amber-200/30 rounded-full blur-3xl" />
         <div className="absolute -bottom-20 -left-20 w-80 h-80 bg-forest-200/30 rounded-full blur-3xl" />

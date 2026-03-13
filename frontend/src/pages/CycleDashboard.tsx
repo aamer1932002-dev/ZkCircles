@@ -114,7 +114,7 @@ export default function CycleDashboard() {
   const symbol = tokenConfig.symbol
 
   return (
-    <div className="min-h-screen bg-cream-50 py-12 md:py-20">
+    <div className="min-h-screen py-12 md:py-20">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">

@@ -94,7 +94,7 @@ export default function HowItWorks() {
   ]
 
   return (
-    <div className="min-h-screen bg-cream-50">
+    <div className="min-h-screen">
       {/* Hero */}
       <section className="relative py-20 md:py-32 overflow-hidden">
         <div className="absolute inset-0 bg-hero-gradient" />
@@ -127,7 +127,7 @@ export default function HowItWorks() {
       </section>
 
       {/* What is a ROSCA */}
-      <section className="py-16 md:py-24 bg-white">
+      <section className="py-16 md:py-24 bg-white/70">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
@@ -158,7 +158,7 @@ export default function HowItWorks() {
       </section>
 
       {/* Steps */}
-      <section className="py-16 md:py-24 bg-cream-50">
+      <section className="py-16 md:py-24 bg-cream-50/60">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -221,7 +221,7 @@ export default function HowItWorks() {
       </section>
 
       {/* Benefits */}
-      <section className="py-16 md:py-24 bg-white">
+      <section className="py-16 md:py-24 bg-white/70">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -262,7 +262,7 @@ export default function HowItWorks() {
       </section>
 
       {/* Comparison Table */}
-      <section className="py-16 md:py-24 bg-cream-50">
+      <section className="py-16 md:py-24 bg-cream-50/60">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div
             initial={{ opacity: 0, y: 20 }}

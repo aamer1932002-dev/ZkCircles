@@ -222,7 +222,7 @@ export default function CircleDetail() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-cream-50 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="w-10 h-10 text-amber-500 animate-spin" />
       </div>
     )
@@ -286,7 +286,7 @@ export default function CircleDetail() {
     : []
 
   return (
-    <div className="min-h-screen bg-cream-50 py-12 md:py-20">
+    <div className="min-h-screen py-12 md:py-20">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <motion.div
