@@ -1539,7 +1539,7 @@ app.get('/api/schedules/pending-notifications', async (req, res) => {
  */
 app.post('/api/email/register', async (req, res) => {
   try {
-    const { address, emailHash, transactionId } = req.body
+    const { address, emailHash, transactionId, email } = req.body
 
     if (!address || !emailHash) {
       return res.status(400).json({ error: 'address and emailHash are required' })
@@ -1547,17 +1547,23 @@ app.post('/api/email/register', async (req, res) => {
 
     if (USE_MOCK) {
       if (!mockData.emailVerifications) mockData.emailVerifications = []
-      mockData.emailVerifications.push({ address, emailHash, status: 0, transactionId })
+      mockData.emailVerifications.push({ address, emailHash, email: email || null, status: 0, transactionId })
       return res.json({ success: true })
     }
 
-    const { error } = await supabase.from('email_verifications').upsert({
+    const upsertData = {
       address: encrypt(address),
       email_hash: emailHash,
       status: 0,
       on_chain_tx: transactionId,
       expires_at: new Date(Date.now() + 24 * 3600000).toISOString(),
-    }, { onConflict: 'address' })
+    }
+    // Store encrypted email if provided (for sending verification codes)
+    if (email) {
+      upsertData.email = encrypt(email)
+    }
+
+    const { error } = await supabase.from('email_verifications').upsert(upsertData, { onConflict: 'address' })
 
     if (error) throw error
     res.json({ success: true })
@@ -1587,7 +1593,6 @@ app.post('/api/email/send-code', async (req, res) => {
     if (USE_MOCK) {
       const entry = (mockData.emailVerifications || []).find(e => e.address === address)
       if (entry) { entry.codeHash = codeHash; entry.status = 1 }
-      // In mock mode, return the code for testing
       return res.json({ success: true, codeSent: true, testCode: code })
     }
 
@@ -1596,17 +1601,17 @@ app.post('/api/email/send-code', async (req, res) => {
       .from('email_verifications')
       .select('*')
 
-    let targetId = null
+    let targetEntry = null
     for (const entry of (allEntries || [])) {
       try {
         if (decrypt(entry.address) === address) {
-          targetId = entry.id
+          targetEntry = entry
           break
         }
       } catch { /* skip */ }
     }
 
-    if (!targetId) {
+    if (!targetEntry) {
       return res.status(404).json({ error: 'No email commitment found. Register first.' })
     }
 
@@ -1614,11 +1619,42 @@ app.post('/api/email/send-code', async (req, res) => {
       verification_code_hash: codeHash,
       status: 1,
       expires_at: new Date(Date.now() + 30 * 60000).toISOString(), // 30 min expiry
-    }).eq('id', targetId)
+    }).eq('id', targetEntry.id)
 
-    // In production, send actual email here via SendGrid/SES/etc.
-    // For testnet, return the code for easy testing
-    res.json({ success: true, codeSent: true, testCode: code })
+    // Attempt to send email if address is stored and SMTP is configured
+    let emailSent = false
+    if (targetEntry.email && process.env.SMTP_HOST) {
+      try {
+        const nodemailer = require('nodemailer')
+        const transporter = nodemailer.createTransport({
+          host: process.env.SMTP_HOST,
+          port: parseInt(process.env.SMTP_PORT || '587'),
+          secure: process.env.SMTP_SECURE === 'true',
+          auth: {
+            user: process.env.SMTP_USER,
+            pass: process.env.SMTP_PASS,
+          },
+        })
+        const recipientEmail = decrypt(targetEntry.email)
+        await transporter.sendMail({
+          from: process.env.SMTP_FROM || 'noreply@zkcircles.app',
+          to: recipientEmail,
+          subject: 'ZkCircles - Email Verification Code',
+          text: `Your ZkCircles verification code is: ${code}\n\nThis code expires in 30 minutes.`,
+          html: `<h2>ZkCircles Verification</h2><p>Your verification code is:</p><h1 style="font-family:monospace;letter-spacing:8px">${code}</h1><p>This code expires in 30 minutes.</p>`,
+        })
+        emailSent = true
+      } catch (emailErr) {
+        console.warn('Email send failed (SMTP not configured or error):', emailErr.message)
+      }
+    }
+
+    // Return testCode for testnet when email delivery is not available
+    const response = { success: true, codeSent: true }
+    if (!emailSent) {
+      response.testCode = code
+    }
+    res.json(response)
   } catch (error) {
     console.error('Error sending code:', error)
     res.status(500).json({ error: 'Failed to send verification code' })

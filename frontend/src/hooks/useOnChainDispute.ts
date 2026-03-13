@@ -12,6 +12,7 @@ import {
 import {
   resolveCachedRecord,
   pollForMembershipRecord,
+  isMembershipRecord,
 } from '../utils/recordResolver'
 import {
   isStalePermissionsError,
@@ -40,12 +41,24 @@ async function resolveMembership(
 ): Promise<string | null> {
   let recordInput: string | null = null
 
+  // Helper: validate that a resolved record is actually a CircleMembership
+  // (has contribution_amount, does NOT have cycle field)
+  function validateMembership(rec: string | null): string | null {
+    if (!rec) return null
+    if (!isMembershipRecord(null, rec)) {
+      console.warn('[OnChainDispute] Rejected non-CircleMembership record from cache')
+      return null
+    }
+    return rec
+  }
+
   const cached = getCachedMembership(address, circleId)
   if (cached) {
     const resolved = await resolveCachedRecord(cached, decrypt)
-    if (resolved) {
-      recordInput = resolved
-      if (resolved !== cached) setCachedMembership(address, circleId, resolved)
+    const valid = validateMembership(resolved)
+    if (valid) {
+      recordInput = valid
+      if (valid !== cached) setCachedMembership(address, circleId, valid)
     } else {
       clearCachedMembership(address, circleId)
     }
@@ -69,10 +82,11 @@ async function resolveMembership(
       const ciphertext = await fetchRecordByIndexFromChain(txId, PROGRAM_ID, 0)
       if (ciphertext) {
         if (decrypt) {
-          recordInput = await decryptAndCacheMembership(address, circleId, ciphertext, decrypt)
+          const decrypted = await decryptAndCacheMembership(address, circleId, ciphertext, decrypt)
+          recordInput = validateMembership(decrypted)
         } else {
-          recordInput = ciphertext
-          setCachedMembership(address, circleId, ciphertext)
+          recordInput = validateMembership(ciphertext)
+          if (recordInput) setCachedMembership(address, circleId, ciphertext)
         }
       }
     }

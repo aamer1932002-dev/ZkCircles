@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useWallet } from '@provablehq/aleo-wallet-adaptor-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Menu, X, Circle, Users, Compass, BookOpen, Shield, BadgeCheck } from 'lucide-react'
 import WalletButton from './WalletButton'
+import { checkEmailStatus } from '../services/api'
 
 const navLinks = [
   { path: '/', label: 'Home', icon: Circle },
@@ -16,8 +17,17 @@ const navLinks = [
 
 export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [isVerified, setIsVerified] = useState<boolean | null>(null)
   const location = useLocation()
-  const { connected } = useWallet()
+  const { connected, address } = useWallet() as any
+
+  useEffect(() => {
+    if (!connected || !address) {
+      setIsVerified(null)
+      return
+    }
+    checkEmailStatus(address).then((s) => setIsVerified(s.verified === true))
+  }, [connected, address])
 
   return (
     <header className="sticky top-0 z-50 bg-cream-50/90 backdrop-blur-md border-b border-cream-200">
@@ -146,6 +156,24 @@ export default function Header() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Verification banner for connected but unverified users */}
+      {connected && isVerified === false && location.pathname !== '/verify-identity' && (
+        <div className="bg-amber-50 border-b border-amber-200 px-4 py-2">
+          <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <p className="text-sm text-amber-800">
+              <BadgeCheck className="w-4 h-4 inline mr-1" />
+              Verify your identity to create or join circles.
+            </p>
+            <Link
+              to="/verify-identity"
+              className="text-sm font-semibold text-amber-700 hover:text-amber-900 underline"
+            >
+              Verify Now
+            </Link>
+          </div>
+        </div>
+      )}
     </header>
   )
 }

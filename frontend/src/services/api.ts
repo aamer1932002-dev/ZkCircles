@@ -706,6 +706,7 @@ export async function registerEmailCommitment(data: {
   address: string
   emailHash: string
   transactionId: string
+  email?: string
 }): Promise<{ success: boolean }> {
   try {
     const response = await fetch(`${BACKEND_URL}/api/email/register`, {

@@ -18,6 +18,7 @@ import CycleDashboard from './pages/CycleDashboard'
 import InviteAccept from './pages/InviteAccept'
 import DisputeResolution from './pages/DisputeResolution'
 import VerifyIdentity from './pages/VerifyIdentity'
+import VerifyIdGate from './components/VerifyIdGate'
 
 function App() {
   return (
@@ -50,16 +51,16 @@ function App() {
       <Routes>
         <Route path="/" element={<Layout />}>
           <Route index element={<Home />} />
-          <Route path="create" element={<CreateCircle />} />
-          <Route path="join" element={<JoinCircle />} />
-          <Route path="join/:circleId" element={<JoinCircle />} />
-          <Route path="my-circles" element={<MyCircles />} />
-          <Route path="circle/:circleId" element={<CircleDetail />} />
-          <Route path="analytics/:circleId" element={<Analytics />} />
-          <Route path="analytics" element={<Analytics />} />
-          <Route path="dashboard/:circleId" element={<CycleDashboard />} />
-          <Route path="invite/:code" element={<InviteAccept />} />
-          <Route path="disputes/:circleId" element={<DisputeResolution />} />
+          <Route path="create" element={<VerifyIdGate><CreateCircle /></VerifyIdGate>} />
+          <Route path="join" element={<VerifyIdGate><JoinCircle /></VerifyIdGate>} />
+          <Route path="join/:circleId" element={<VerifyIdGate><JoinCircle /></VerifyIdGate>} />
+          <Route path="my-circles" element={<VerifyIdGate><MyCircles /></VerifyIdGate>} />
+          <Route path="circle/:circleId" element={<VerifyIdGate><CircleDetail /></VerifyIdGate>} />
+          <Route path="analytics/:circleId" element={<VerifyIdGate><Analytics /></VerifyIdGate>} />
+          <Route path="analytics" element={<VerifyIdGate><Analytics /></VerifyIdGate>} />
+          <Route path="dashboard/:circleId" element={<VerifyIdGate><CycleDashboard /></VerifyIdGate>} />
+          <Route path="invite/:code" element={<VerifyIdGate><InviteAccept /></VerifyIdGate>} />
+          <Route path="disputes/:circleId" element={<VerifyIdGate><DisputeResolution /></VerifyIdGate>} />
           <Route path="verify-identity" element={<VerifyIdentity />} />
           <Route path="explorer" element={<Explorer />} />
           <Route path="how-it-works" element={<HowItWorks />} />

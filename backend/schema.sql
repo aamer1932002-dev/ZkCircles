@@ -263,6 +263,7 @@ CREATE TABLE email_verifications (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     address TEXT NOT NULL,                      -- encrypted Aleo address
     email_hash TEXT NOT NULL,                   -- hash of email (never store raw email)
+    email TEXT,                                 -- encrypted email (for sending verification codes)
     verification_code_hash TEXT,                -- hash of the verification code
     status SMALLINT NOT NULL DEFAULT 0,         -- 0=pending, 1=code_sent, 2=verified
     on_chain_tx TEXT,                           -- tx id for register_email_commitment

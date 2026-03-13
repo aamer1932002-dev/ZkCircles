@@ -188,14 +188,21 @@ export default function VerifyIdentity() {
                   Step 2: Enter Verification Code
                 </h2>
                 <p className="text-sm text-midnight-600 mb-4">
-                  Enter the 6-digit code sent to your email.
+                  A 6-digit verification code has been generated for your account.
                 </p>
 
                 {testCode && (
                   <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4">
                     <p className="text-amber-800 text-sm">
-                      <strong>Testnet mode:</strong> Your verification code is <code className="bg-amber-100 px-2 py-0.5 rounded font-mono">{testCode}</code>
+                      <strong>Testnet:</strong> Email delivery is not configured yet. Use this code: <code className="bg-amber-100 px-2 py-1 rounded font-mono text-lg font-bold">{testCode}</code>
                     </p>
+                    <button
+                      type="button"
+                      onClick={() => { setCode(testCode); }}
+                      className="mt-2 text-xs text-amber-700 hover:text-amber-900 underline"
+                    >
+                      Auto-fill code
+                    </button>
                   </div>
                 )}
 

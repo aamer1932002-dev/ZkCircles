@@ -57,11 +57,12 @@ export function useZkEmailVerification() {
 
       const txId = String((result as any)?.transactionId || result)
 
-      // Register with backend
+      // Register with backend (pass email so backend can send verification codes)
       await registerEmailCommitment({
         address,
         emailHash,
         transactionId: txId,
+        email: email.toLowerCase().trim(),
       })
 
       setStatus(prev => ({ ...prev, registered: true, status: 1 }))
