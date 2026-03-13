@@ -31,7 +31,6 @@ Privacy matters because financial need is personal. On ZkCircles, member keys ar
 - zkEmail identity verification — register an email hash on-chain and mark the address as verified; visible in the circle member list
 
 **Dispute resolution**
-- Flag missed contribution — any member can flag a past-cycle non-contributor on-chain; prevents double-flagging
 - Create dispute — open a formal on-chain dispute against an accused member with a reason (missed contribution / suspicious activity / collusion)
 - Vote on dispute — members cast votes; tally tracked in the `dispute_votes` mapping
 - Resolve dispute — close the dispute and record the outcome (guilty / innocent) on-chain
