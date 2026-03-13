@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useWallet } from '@provablehq/aleo-wallet-adaptor-react'
 import { motion } from 'framer-motion'
@@ -28,7 +28,8 @@ import { useTransferMembership } from '../hooks/useTransferMembership'
 import { useVerifyMembership } from '../hooks/useVerifyMembership'
 import { useJoinCircle } from '../hooks/useJoinCircle'
 import { dissolveCircle } from '../services/api'
-import { NotificationToggle } from '../components/NotificationBanner'
+import NotificationBanner, { NotificationToggle } from '../components/NotificationBanner'
+import { useNotifications } from '../hooks/useNotifications'
 
 const statusLabels = {
   0: { label: 'Forming', color: 'badge-amber', description: 'Waiting for members to join' },
@@ -47,7 +48,9 @@ export default function CircleDetail() {
   const { transferMembership, isTransferring, transactionStatus: transferStatus } = useTransferMembership()
   const { checkMembershipLocally, verifyMembership, isVerifying } = useVerifyMembership()
   const { joinCircle, isJoining, transactionStatus: joinStatus } = useJoinCircle()
-  
+  const { notifyPayoutTurn, notifyContributionDue, notifyCircleFull, isCircleEnabled } = useNotifications()
+  const notifiedRef = useRef<Set<string>>(new Set())
+
   const [copied, setCopied] = useState(false)
   const [showTransferModal, setShowTransferModal] = useState(false)
   const [transferAddress, setTransferAddress] = useState('')
@@ -60,6 +63,35 @@ export default function CircleDetail() {
       fetchCircleDetail(circleId)
     }
   }, [circleId])
+
+  // Fire browser notifications when circle data loads and notifications are enabled
+  useEffect(() => {
+    if (!circle || !circleId || !address || circle.status !== 1) return
+    if (!isCircleEnabled(circleId)) return
+    const myMember = members.find(m => m.address === address)
+    const myTurn = members.find(m => m.joinOrder === circle.currentCycle)?.address === address
+    const hasContributed = myMember?.contributedCycles?.includes(circle.currentCycle)
+    if (myTurn) {
+      const key = `payout-${circleId}-${circle.currentCycle}`
+      if (!notifiedRef.current.has(key)) {
+        notifiedRef.current.add(key)
+        notifyPayoutTurn(
+          circle.name || `Circle ${circleId.slice(0, 8)}`,
+          circle.contributionAmount * circle.maxMembers,
+        )
+      }
+    } else if (myMember && !hasContributed) {
+      const key = `contrib-${circleId}-${circle.currentCycle}`
+      if (!notifiedRef.current.has(key)) {
+        notifiedRef.current.add(key)
+        notifyContributionDue(
+          circle.name || `Circle ${circleId.slice(0, 8)}`,
+          circle.contributionAmount,
+          0,
+        )
+      }
+    }
+  }, [circle, members, circleId, address, isCircleEnabled])
 
   const handleCopyLink = () => {
     const link = `${window.location.origin}/join/${circleId}`
@@ -140,9 +172,13 @@ export default function CircleDetail() {
 
   const handleJoinCircle = async () => {
     if (!circleId || !connected) return
+    const willBeFull = circle && (circle.membersJoined + 1 >= circle.maxMembers)
     const result = await joinCircle(circleId, circle?.contributionAmount ?? 0)
     if (result.success) {
       toast.success('Joined circle — confirmed on-chain!')
+      if (willBeFull && isCircleEnabled(circleId)) {
+        notifyCircleFull(circle?.name || `Circle ${circleId.slice(0, 8)}`)
+      }
       fetchCircleDetail(circleId)
     } else if (result.error) {
       toast.error(result.error, { duration: 8000 })
@@ -279,6 +315,10 @@ export default function CircleDetail() {
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
+            {/* Notification opt-in banner — only shown when notifications are not yet enabled */}
+            {circleId && circle.status === 1 && isMember && (
+              <NotificationBanner circleId={circleId} circleName={circle.name || circleId} />
+            )}
             {/* Stats Cards */}
             <motion.div
               initial={{ opacity: 0, y: 30 }}
