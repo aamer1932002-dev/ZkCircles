@@ -1,104 +1,131 @@
 # ZkCircles
 
-**Trustless, Zero-Knowledge Rotating Savings and Credit Associations on Aleo**
+**Trustless, privacy-preserving ROSCA on the Aleo blockchain.**
 
-ZkCircles brings the centuries-old tradition of community savings circles (ROSCAs/chit funds/tandas) to the blockchain with full privacy using Aleo's zero-knowledge technology.
+Members pool a fixed amount each cycle and take turns receiving the full pot — no organizer holds funds, no one can cheat the order, and no member identity is exposed on-chain.
+
+Privacy matters because financial need is personal. On ZkCircles, member keys are BHP256 hashes, receipts and membership proofs are private Aleo records visible only to the owner, and circle names are AES-256-GCM encrypted off-chain so only a hash reaches the chain.
 
 ![License](https://img.shields.io/badge/license-MIT-amber)
 ![Aleo](https://img.shields.io/badge/Aleo-Testnet-brightgreen)
-![Program](https://img.shields.io/badge/Program-zk__circles__v6.aleo-blue)
+![Program](https://img.shields.io/badge/Program-zk__circles__v11.aleo-blue)
 
----
-
-## What are ROSCAs?
-
-Rotating Savings and Credit Associations have been trusted by communities worldwide for centuries -- known as Tandas (Latin America), Chit Funds (India), Susu (West Africa), and Hui (China). Members contribute fixed amounts each cycle, and one member receives the entire pot per cycle. ZkCircles digitises this trust with cryptographic guarantees on Aleo.
+**Live app:** https://zk-circles.vercel.app/  
+**Repo:** https://github.com/aamer1932002-dev/ZkCircles  
+**Video demo:** https://youtu.be/AGZZAXuah-g
 
 ---
 
 ## What's Working
 
-- **Create a circle** -- set contribution amount, member count (2-20), and total cycles
-- **Join a circle** -- any wallet holder can join a forming circle
-- **Contribute** -- send your contribution for the current cycle via `credits.aleo/transfer_public_as_signer`
-- **Claim payout** -- the cycle winner claims the full pot via `credits.aleo/transfer_public`
-- **Transfer membership** -- pass your circle position to another address
-- **Verify membership** -- on-chain proof that an address is a member
-- **Cancel circle** -- creator can cancel a circle while it is still forming
-- **Explorer** -- browse all circles on the platform
-- **Analytics** -- per-circle contribution history, member breakdown, payout schedule (accessible from the circle detail page)
-- **On-chain pre-flight checks** -- queries live chain state before every transaction to catch errors upfront
-- **Transaction confirmation tracking** -- polls the Aleo explorer until accepted or rejected; resolves Shield Wallet temporary IDs to real on-chain TX IDs
-- **Shield Wallet** -- primary tested wallet with full `privateFee: false` support
+**Core ROSCA flow**
+- Create a circle — set contribution amount, member cap (2-20), total cycles, and token (ALEO / USDCx / USAD)
+- Join a circle — any wallet can join a forming circle
+- Contribute — sends your contribution for the current cycle via `credits.aleo/transfer_public_as_signer` (or the stablecoin equivalent)
+- Claim payout — the cycle winner pulls the full pot via `credits.aleo/transfer_public`
+- Cancel circle — creator can cancel while the circle is still forming
 
----
+**Membership & identity**
+- Transfer membership — pass your circle position to any address; the new owner's address is synced to the backend and the UI refreshes immediately
+- Verify membership — on-chain ZK proof that an address holds a valid `CircleMembership` record
+- zkEmail identity verification — register an email hash on-chain and mark the address as verified; visible in the circle member list
 
-## Architecture
+**Dispute resolution**
+- Flag missed contribution — any member can flag a past-cycle non-contributor on-chain; prevents double-flagging
+- Create dispute — open a formal on-chain dispute against an accused member with a reason (missed contribution / suspicious activity / collusion)
+- Vote on dispute — members cast votes; tally tracked in the `dispute_votes` mapping
+- Resolve dispute — close the dispute and record the outcome (guilty / innocent) on-chain
 
-```
-+-------------------------------------------------------------+
-|                     Frontend (React)                        |
-|              Vite + TypeScript + Tailwind CSS               |
-|                   Deployed on Vercel                        |
-+-------------------------------------------------------------+
-|                  Wallet Adapter Layer                       |
-|     @provablehq/aleo-wallet-adaptor-react (Official)        |
-|       Shield Wallet (primary)  |  Leo Wallet                |
-+-------------------------------------------------------------+
-|                   Backend (Express)                         |
-|        Off-chain indexing + AES-256-GCM encryption          |
-|                   Deployed on Render                        |
-+-------------------------------------------------------------+
-|                  Supabase (PostgreSQL)                      |
-|          circles, members, contributions, payouts           |
-+-------------------------------------------------------------+
-|                    Aleo Testnet                              |
-|  zk_circles_v6.aleo + credits.aleo                          |
-|  (transfer_public_as_signer / transfer_public)              |
-+-------------------------------------------------------------+
-```
+**Discovery & management**
+- Explorer — browse every circle on the platform with live on-chain status
+- My Circles — view all circles you have joined or created
+- Analytics — per-circle contribution history, member contribution breakdown, completion rate, payout schedule
+- Multi-cycle dashboard — visual timeline of all past and upcoming payout cycles for a circle
+- Circle invite links — share a URL that drops someone directly into the join flow for a specific circle
+
+**Automation & notifications**
+- Auto-contribution scheduling — enable reminders so you never miss a cycle; stored per-member in the backend
+- Browser notifications — push alerts for your payout turn and contribution reminders via the Service Worker
+
+**Infrastructure**
+- 3-layer membership caching — wallet records → localStorage → Aleo testnet fetch
+- Live transaction status tracker — polls the explorer until accepted or rejected; resolves Shield Wallet temporary IDs to real on-chain TX IDs
+- On-chain pre-flight checks — queries live chain state before every transaction to surface errors before broadcasting
+- Stale permissions handling — detects expired wallet sessions and prompts reconnect instead of showing a raw error
+- AES-256-GCM backend encryption — all member addresses and sensitive metadata are encrypted before hitting the database
 
 ---
 
 ## Smart Contract
 
-**Deployed program:** `zk_circles_v6.aleo`
-**Deployment TX:** `at1z5rendz2gtpeq7u2ldsnmy8mrcvlxasn373n9j5j54v8t32lxcrsq7u7wh`
+**Program:** `zk_circles_v11.aleo`  
+**Network:** Aleo Testnet  
+**v6 Deployment TX:** `at1z5rendz2gtpeq7u2ldsnmy8mrcvlxasn373n9j5j54v8t32lxcrsq7u7wh`
 
 ### Transitions
 
-| Function | Description | credits.aleo |
-|---|---|---|
-| `create_circle` | Create a new savings circle | -- |
-| `join_circle` | Join a forming circle | -- |
-| `contribute` | Contribute for the current cycle | `transfer_public_as_signer` to program address |
-| `claim_payout` | Claim the pot when it's your turn | `transfer_public` to winner |
-| `transfer_membership` | Transfer your position to another address | -- |
-| `verify_membership` | Assert on-chain membership | -- |
-| `cancel_circle` | Cancel a forming circle (creator only) | -- |
+| Transition | Description |
+|---|---|
+| `create_circle` | Create a new savings circle |
+| `join_circle` | Join a forming circle |
+| `contribute` | Contribute ALEO for the current cycle (`transfer_public_as_signer`) |
+| `contribute_usdcx` | Contribute USDCx stablecoin |
+| `contribute_usad` | Contribute USAD stablecoin |
+| `claim_payout` | Claim the ALEO pot when it is your turn (`transfer_public`) |
+| `claim_payout_usdcx` | Claim USDCx payout |
+| `claim_payout_usad` | Claim USAD payout |
+| `transfer_membership` | Transfer your position to another address |
+| `verify_membership` | Assert on-chain membership |
+| `cancel_circle` | Cancel a forming circle (creator only) |
+| `flag_missed_contribution` | Flag a member who missed a past cycle |
+| `create_dispute` | Open a formal on-chain dispute |
+| `vote_on_dispute` | Cast a vote on an open dispute |
+| `resolve_dispute` | Close a dispute and record the verdict |
+| `register_email_commitment` | Commit an email hash to the chain |
+| `verify_email_commitment` | Mark an address as email-verified on-chain |
 
-### Records (private, encrypted for owner)
+### Private Records
 
 | Record | Fields |
 |---|---|
 | `CircleMembership` | `owner`, `circle_id`, `contribution_amount` |
 | `ContributionReceipt` | `owner`, `circle_id`, `cycle`, `amount` |
 | `PayoutReceipt` | `owner`, `circle_id`, `cycle` |
+| `DisputeReceipt` | `owner`, `circle_id`, `dispute_id`, `accused` |
 
-### Mappings (public on-chain state)
+### Mappings
 
-| Mapping | Key -> Value |
+| Mapping | Key → Value |
 |---|---|
-| `circles` | `circle_id: field` -> `CircleInfo` |
-| `members` | `BHP256(circle_id, member_addr)` -> `join_order: u8` |
-| `contributions` | `BHP256(circle_id, cycle, member_addr)` -> `bool` |
+| `circles` | `circle_id` → `CircleInfo` |
+| `members` | `BHP256(circle_id, address)` → `join_order` |
+| `contributions` | `BHP256(circle_id, cycle, address)` → `bool` |
+| `defaults` | `BHP256(circle_id, defaulter)` → missed count |
+| `default_flags` | `BHP256(circle_id, defaulter, cycle)` → `bool` |
+| `cycle_count` | `BHP256(circle_id, cycle)` → contributor count |
+| `disputes` | `BHP256(DisputeKey)` → `DisputeInfo` |
+| `dispute_votes` | `BHP256(DisputeVoteKey)` → `bool` |
+| `email_commitments` | `BHP256(address)` → email hash |
+| `email_verified` | `BHP256(address)` → `bool` |
 
 ### Privacy Design
 
-- Member addresses are **never stored in plain text** -- all mapping keys are BHP256 hashes
-- Membership and contribution proofs are **private records** owned by the user's key
-- Circle names are **encrypted off-chain** with AES-256-GCM; only the `circle_id` field hash appears on-chain
-- Circle IDs are derived off-chain as `BHP256(creator + name + salt)` so the circle name is never on-chain
+- Member addresses are **never stored in plain text** — all mapping keys are `BHP256` hashes so no identity reaches the chain
+- Membership, contribution, payout, and dispute proofs are **private records** encrypted to the owner's key
+- Circle names are **AES-256-GCM encrypted off-chain**; only the derived `circle_id` field hash is stored on-chain
+- Circle IDs are derived as `BHP256(creator + name + salt)` — the name is never on-chain
+
+---
+
+## Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | React + TypeScript + Vite + Tailwind CSS, deployed on Vercel |
+| Wallet | Shield Wallet (primary) and Leo Wallet via `@provablehq/aleo-wallet-adaptor-react` |
+| Backend | Express.js + Supabase (PostgreSQL), deployed on Render |
+| Encryption | AES-256-GCM for all off-chain sensitive data |
+| Chain | Aleo Testnet — `zk_circles_v11.aleo` + `credits.aleo` |
 
 ---
 
@@ -106,153 +133,72 @@ Rotating Savings and Credit Associations have been trusted by communities worldw
 
 ```
 LeoCircles/
-├── contracts/
-│   └── zk_circles/
-│       ├── src/main.leo          # Core ROSCA smart contract
-│       └── program.json
-├── frontend/
-│   └── src/
-│       ├── components/           # Header, Layout, WalletButton, Footer, etc.
-│       ├── pages/                # Home, CreateCircle, JoinCircle, CircleDetail,
-│       │                         # MyCircles, Explorer, Analytics, HowItWorks, Privacy
-│       ├── hooks/                # useCreateCircle, useJoinCircle, useContribute,
-│       │                         # useClaimPayout, useTransferMembership,
-│       │                         # useVerifyMembership, useAnalytics, useCircles, etc.
-│       ├── utils/
-│       │   ├── transactionTracker.ts
-│       │   ├── membershipCache.ts
-│       │   ├── recordResolver.ts
-│       │   ├── onChainQuery.ts
-│       │   └── walletErrors.ts
-│       ├── services/api.ts
-│       └── config.ts
-├── backend/
-│   ├── index.js
-│   ├── encryption.js
-│   └── schema.sql
-└── README.md
+├── contracts/zk_circles/src/main.leo   # Core ROSCA smart contract
+├── frontend/src/
+│   ├── pages/        # Home, CreateCircle, JoinCircle, CircleDetail, MyCircles,
+│   │                 # Explorer, Analytics, CycleDashboard, DisputeResolution,
+│   │                 # InviteAccept, VerifyIdentity, HowItWorks, Privacy
+│   ├── hooks/        # useCreateCircle, useJoinCircle, useContribute, useClaimPayout,
+│   │                 # useTransferMembership, useVerifyMembership, useDisputeResolution,
+│   │                 # useOnChainDispute, useZkEmailVerification, useAutoContribution,
+│   │                 # useInviteLinks, useAnalytics, useNotifications, useCircles, etc.
+│   ├── utils/        # transactionTracker, membershipCache, recordResolver,
+│   │                 # onChainQuery, walletErrors
+│   ├── services/api.ts
+│   └── config.ts
+└── backend/
+    ├── index.js       # Express API
+    ├── encryption.js  # AES-256-GCM helpers
+    └── schema.sql
 ```
 
 ---
 
 ## Running Locally
 
-### Prerequisites
-
-- Node.js >= 18
-- [Shield Wallet](https://www.shieldwallet.xyz/) browser extension (recommended)
-- [Supabase](https://supabase.com) project (free tier works)
-
-### 1. Clone
+**Prerequisites:** Node.js ≥ 18, [Shield Wallet](https://www.shieldwallet.xyz/) browser extension, a free [Supabase](https://supabase.com) project.
 
 ```bash
 git clone https://github.com/aamer1932002-dev/ZkCircles.git
 cd ZkCircles
 ```
 
-### 2. Backend
+**Backend**
 
 ```bash
 cd backend
 npm install
-
 # Create .env:
-# SUPABASE_URL=<your supabase url>
-# SUPABASE_ANON_KEY=<your anon key>
+# SUPABASE_URL=...
+# SUPABASE_ANON_KEY=...
 # ENCRYPTION_KEY=<64 hex chars>
 # PORT=3001
-
-# Run schema in Supabase SQL Editor (paste backend/schema.sql)
-
+# Run backend/schema.sql in the Supabase SQL editor first
 npm start
 ```
 
-### 3. Frontend
+**Frontend**
 
 ```bash
 cd frontend
 npm install
-
-# Optional .env (defaults point to production):
+# Optional .env to point at local backend:
 # VITE_BACKEND_URL=http://localhost:3001
-# VITE_PROGRAM_ID=zk_circles_v6.aleo
-
 npm run dev
-# Open http://localhost:5173
+# http://localhost:5173
 ```
 
 ---
 
 ## Production Deployment
 
-| Service | Config |
+| Service | Settings |
 |---|---|
-| Frontend | Vercel -- root dir: `frontend` |
-| Backend | Render -- root dir: `backend`, start cmd: `node index.js` |
+| Frontend | Vercel — root dir `frontend` |
+| Backend | Render — root dir `backend`, start command `node index.js` |
 
-**Vercel environment variables:**
-- `VITE_BACKEND_URL` -- Render service URL (e.g. `https://zkcircles.onrender.com`)
-- `VITE_PROGRAM_ID` -- `zk_circles_v6.aleo`
-
-**Render environment variables:**
-- `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `ENCRYPTION_KEY`, `PORT`
-
----
-
-## Wallet Integration
-
-```typescript
-import { ShieldWalletAdapter } from '@provablehq/aleo-wallet-adaptor-shield'
-import { LeoWalletAdapter } from '@provablehq/aleo-wallet-adaptor-leo'
-
-const wallets = [
-  new ShieldWalletAdapter(),
-  new LeoWalletAdapter({ appName: 'ZkCircles' }),
-]
-```
-
-All transactions use `privateFee: false` (required for Shield Wallet):
-
-```typescript
-await executeTransaction({
-  program: 'zk_circles_v6.aleo',
-  function: 'contribute',
-  inputs: [membershipRecord, cycle + 'u8'],
-  fee: 1_000_000,
-  privateFee: false,
-  recordIndices: [0],
-})
-```
-
----
-
-## Roadmap
-
-### Completed
-
-| Feature | Description |
-|---|---|
-| Smart Contract (v6) | Deployed `zk_circles_v6.aleo` on Aleo Testnet |
-| Full ROSCA flow | Create, Join, Contribute, Claim across all cycles |
-| Shield Wallet support | Shield temp ID resolution; `privateFee: false` |
-| Leo Wallet support | Full adapter integration |
-| Privacy-first design | BHP256 hashed member keys, encrypted circle names |
-| Record type guards | Rejects wrong-type plaintexts before transaction submission |
-| Membership caching | 3-layer fallback: wallet, localStorage, chain fetch |
-| Transaction tracker | Explorer polling with Shield temp ID resolution |
-| Analytics | Per-cycle contribution history, member breakdown, payout schedule |
-| Backend indexing | Express + Supabase with AES-256-GCM encrypted metadata |
-| On-chain pre-flight | Live chain state checked before every transaction |
-
-### Next Wave
-
-| Feature | Priority | Description |
-|---|---|---|
-| Circle invite links | High | Share a URL to invite members directly to a forming circle |
-| Multi-cycle dashboard | Medium | Visual timeline of all past and upcoming payout cycles |
-| Auto-contribution | Low | Scheduled contributions so members never miss a cycle |
-| Dispute resolution | Low | On-chain mechanism for handling missed contributions |
-| zkEmail integration | Low | Verify real-world identity via ZK email proofs for trusted circles |
+**Vercel env vars:** `VITE_BACKEND_URL`, `VITE_PROGRAM_ID`  
+**Render env vars:** `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `ENCRYPTION_KEY`, `PORT`
 
 ---
 
@@ -262,10 +208,7 @@ await executeTransaction({
 - [Leo Language Reference](https://developer.aleo.org/leo/)
 - [Shield Wallet](https://www.shieldwallet.xyz/)
 - [Aleo Testnet Explorer](https://explorer.aleo.org/)
-- [Supabase Docs](https://supabase.com/docs)
 
 ---
 
-Built with love for communities worldwide
-
-*Aleo Buildathon 2026*
+*Built for communities worldwide — Aleo Buildathon 2026*
