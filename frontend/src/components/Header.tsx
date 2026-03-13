@@ -53,7 +53,7 @@ export default function Header() {
           <Link to="/" className="flex items-center gap-3 group">
             <div className="relative w-10 h-10 md:w-12 md:h-12">
               <img 
-                src="/logo.svg" 
+                src="/logo.png" 
                 alt="ZkCircles Logo" 
                 className="w-full h-full object-contain"
               />
