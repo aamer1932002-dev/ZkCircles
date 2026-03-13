@@ -33,10 +33,13 @@ export function useZkEmailVerification() {
   const [testCode, setTestCode] = useState<string | null>(null)
   const [emailForVerify, setEmailForVerify] = useState<string | null>(null)
 
-  // Check status on mount
+  // Check status on mount — jump straight to done if already verified
   useEffect(() => {
     if (connected && address) {
-      checkEmailStatus(address).then(setStatus)
+      checkEmailStatus(address).then(s => {
+        setStatus(s)
+        if (s.verified) setStep('done')
+      })
     }
   }, [connected, address])
 
@@ -169,7 +172,10 @@ export function useZkEmailVerification() {
       setIsProcessing(false)
       setTransactionStatus(null)
       // Cache so VerifyIdGate skips the API call on next page load
-      try { localStorage.setItem(`zk_verified_${address}`, 'true') } catch { /* ignore */ }
+      try {
+        localStorage.setItem(`zk_verified_${address}`, 'true')
+        window.dispatchEvent(new Event('zkcircles:verified'))
+      } catch { /* ignore */ }
       return { success: true }
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Verification failed'

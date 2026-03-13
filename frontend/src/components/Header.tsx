@@ -26,8 +26,24 @@ export default function Header() {
       setIsVerified(null)
       return
     }
-    checkEmailStatus(address).then((s) => setIsVerified(s.verified === true))
+    // Check localStorage first (set after verification)
+    if (localStorage.getItem(`zk_verified_${address}`) === 'true') {
+      setIsVerified(true)
+      return
+    }
+    checkEmailStatus(address).then((s) => {
+      const v = s.verified === true
+      if (v) localStorage.setItem(`zk_verified_${address}`, 'true')
+      setIsVerified(v)
+    })
   }, [connected, address])
+
+  // Listen for real-time verification event so banner hides immediately
+  useEffect(() => {
+    const onVerified = () => setIsVerified(true)
+    window.addEventListener('zkcircles:verified', onVerified)
+    return () => window.removeEventListener('zkcircles:verified', onVerified)
+  }, [])
 
   return (
     <header className="sticky top-0 z-50 bg-cream-50/90 backdrop-blur-md border-b border-cream-200">
