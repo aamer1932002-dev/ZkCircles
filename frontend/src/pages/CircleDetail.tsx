@@ -766,7 +766,7 @@ export default function CircleDetail() {
                         } else {
                           const result = await enableAutoContribution(circleId)
                           if (result.success) {
-                            toast.success('Auto-contribution enabled! You'll be reminded before each cycle.')
+                            toast.success('Auto-contribution enabled! You\'ll be reminded before each cycle.')
                           } else {
                             toast.error(result.error || 'Failed to enable')
                           }
@@ -789,7 +789,7 @@ export default function CircleDetail() {
                       {isScheduled(circleId) ? 'Auto-Contribute: ON' : 'Enable Auto-Contribute'}
                     </button>
                     <p className="text-xs text-midnight-500 mt-1 text-center">
-                      {isScheduled(circleId) ? 'You'll be reminded before contribution deadlines' : 'Get reminders to contribute each cycle'}
+                      {isScheduled(circleId) ? "You'll be reminded before contribution deadlines" : 'Get reminders to contribute each cycle'}
                     </p>
                   </div>
                 )}
