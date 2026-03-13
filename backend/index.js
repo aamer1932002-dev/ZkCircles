@@ -797,23 +797,43 @@ app.get('/api/circles/:circleId/analytics', async (req, res) => {
 
     const totalContributed = contribs.reduce((sum, c) => sum + Number(c.amount), 0)
     const totalPaidOut = payoutList.reduce((sum, p) => sum + Number(p.amount), 0)
-    const completionPercentage = Math.round(((circle.current_cycle || 1) / totalCycles) * 100)
+    const currentCycle = circle.current_cycle || 0
+    // completedCycles = cycles that have fully finished (current cycle is still running)
+    const completedCycles = Math.max(currentCycle - 1, 0)
+    const completionPercentage = totalCycles > 0 ? Math.round((completedCycles / totalCycles) * 100) : 0
     const healthScore = Math.min(100, Math.round(
       (memberList.length / (circle.max_members || memberList.length || 1)) * 40 +
       completionPercentage * 0.4 +
       (totalContributed > 0 ? 20 : 0)
     ))
 
+    // Per-member contribution metadata: which cycles they contributed to
+    const memberContributionsFull = memberList.map(m => {
+      const mc = contribs.filter(c => c.member_address === m.member_address)
+      const contributed = mc.reduce((sum, c) => sum + Number(c.amount), 0)
+      const expected = contribAmount * totalCycles
+      const missedCycles = Math.max(0, currentCycle - mc.length)
+      const cycles = Array.from({ length: totalCycles }, (_, i) =>
+        mc.some(c => c.cycle === i + 1)
+      )
+      const addr = m.member_address
+      const shortAddress = addr.length > 16 ? `${addr.slice(0, 8)}...${addr.slice(-6)}` : addr
+      return { address: addr, shortAddress, contributed, expected, missedCycles, cycles }
+    })
+
     return res.json({
       circleId,
       circleName: circle.name,
+      totalCycles,
+      completedCycles,
+      currentCycle,
       totalContributed,
       totalPaidOut,
       activeMembers: memberList.length,
       completionPercentage,
       healthScore,
       cycleHistory,
-      memberContributions,
+      memberContributions: memberContributionsFull,
       payoutSchedule,
     })
   } catch (err) {

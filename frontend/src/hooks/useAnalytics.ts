@@ -59,12 +59,20 @@ export function useAnalytics() {
         if (res.ok) {
           const raw: any = await res.json()
           // Map backend shape → frontend CircleAnalytics interface
+          const totalCycles = raw.totalCycles ?? (raw.cycleHistory?.length || 0)
+          // Backend now returns completedCycles directly (= currentCycle - 1).
+          // Fallback: derive from currentCycle if present, else from completionPercentage.
+          const completedCycles = raw.completedCycles != null
+            ? raw.completedCycles
+            : raw.currentCycle != null
+              ? Math.max(raw.currentCycle - 1, 0)
+              : Math.round(((raw.completionPercentage ?? 0) / 100) * totalCycles)
           backendAnalytics = {
             circleId: raw.circleId ?? circleId,
             circleName: raw.circleName ?? `Circle ${circleId.slice(0, 8)}`,
             totalMembers: raw.activeMembers ?? raw.totalMembers ?? 0,
-            completedCycles: raw.completedCycles ?? Math.max((raw.completionPercentage ?? 0) > 0 ? Math.round((raw.completionPercentage / 100) * (raw.totalCycles ?? 0)) : 0, 0),
-            totalCycles: raw.totalCycles ?? (raw.cycleHistory?.length || 0),
+            completedCycles,
+            totalCycles,
             healthScore: raw.healthScore ?? 0,
             totalVolumeContributed: raw.totalVolumeContributed ?? raw.totalContributed ?? 0,
             totalVolumePaid: raw.totalVolumePaid ?? raw.totalPaidOut ?? 0,
@@ -78,8 +86,10 @@ export function useAnalytics() {
             memberContributions: (raw.memberContributions ?? []).map((m: any) => ({
               address: m.address,
               shortAddress: m.shortAddress ?? `${m.address.slice(0, 8)}...${m.address.slice(-6)}`,
+              // Backend returns "contributed"; frontend type uses "totalContributed"
               totalContributed: m.totalContributed ?? m.contributed ?? 0,
-              cycles: m.cycles ?? [],
+              // Backend now returns per-cycle bool array; fallback to empty
+              cycles: Array.isArray(m.cycles) ? m.cycles : [],
               hasReceivedPayout: m.hasReceivedPayout ?? false,
             })),
             payoutSchedule: (raw.payoutSchedule ?? []).map((p: any) => ({
@@ -112,17 +122,23 @@ export function useAnalytics() {
         const cycle = i + 1
         const isComplete = cycle < currentCycle
         const isCurrent = cycle === currentCycle
+        // Count how many members contributed this specific cycle
+        const contributorsThisCycle = safeMembers.filter(m =>
+          m.contributedCycles?.includes(cycle)
+        ).length
         return {
           cycle,
           label: `Cycle ${cycle}`,
           totalContributed: isComplete
-            ? potAmount
+            ? potAmount  // full pot collected for completed cycles
             : isCurrent
-            ? safeMembers.reduce((sum, m) => sum + (m.totalContributed || 0), 0)
+            ? contributorsThisCycle * contributionAmount  // actual collected so far
             : 0,
           expectedAmount: potAmount,
-          completionRate: isComplete ? 100 : isCurrent
-            ? Math.round((safeMembers.filter(m => (m.totalContributed || 0) >= contributionAmount * cycle).length / Math.max(safeMembers.length, 1)) * 100)
+          completionRate: isComplete
+            ? 100
+            : isCurrent
+            ? Math.round((contributorsThisCycle / Math.max(safeMembers.length, 1)) * 100)
             : 0,
         }
       })
@@ -133,7 +149,7 @@ export function useAnalytics() {
         shortAddress: `${m.address.slice(0, 8)}...${m.address.slice(-6)}`,
         totalContributed: m.totalContributed || 0,
         cycles: Array.from({ length: totalCycles }, (_, i) =>
-          (m.totalContributed || 0) >= contributionAmount * (i + 1)
+          m.contributedCycles?.includes(i + 1) ?? false
         ),
         hasReceivedPayout: m.hasReceivedPayout ?? false,
       }))
