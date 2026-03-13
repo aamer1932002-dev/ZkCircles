@@ -7,6 +7,16 @@ interface VerifyIdGateProps {
   children: React.ReactNode
 }
 
+function getCachedVerified(address: string): boolean {
+  try {
+    return localStorage.getItem(`zk_verified_${address}`) === 'true'
+  } catch { return false }
+}
+
+function setCachedVerified(address: string) {
+  try { localStorage.setItem(`zk_verified_${address}`, 'true') } catch { /* ignore */ }
+}
+
 export default function VerifyIdGate({ children }: VerifyIdGateProps) {
   const { connected, address } = useWallet() as any
   const navigate = useNavigate()
@@ -20,12 +30,21 @@ export default function VerifyIdGate({ children }: VerifyIdGateProps) {
       return
     }
 
+    // If we already cached verified for this address, skip the API call
+    if (getCachedVerified(address)) {
+      setVerified(true)
+      setChecking(false)
+      return
+    }
+
     let cancelled = false
     setChecking(true)
 
     checkEmailStatus(address).then((status) => {
       if (cancelled) return
-      setVerified(status.verified === true)
+      const isVerified = status.verified === true
+      if (isVerified) setCachedVerified(address)
+      setVerified(isVerified)
       setChecking(false)
     })
 

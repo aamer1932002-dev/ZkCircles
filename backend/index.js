@@ -1704,7 +1704,8 @@ app.post('/api/email/verify', async (req, res) => {
       return res.status(400).json({ error: 'address and code are required' })
     }
 
-    const codeHash = require('crypto').createHash('sha256').update(code).digest('hex')
+    const trimmedCode = code.trim()
+    const codeHash = require('crypto').createHash('sha256').update(trimmedCode).digest('hex')
 
     if (USE_MOCK) {
       const entry = (mockData.emailVerifications || []).find(e => e.address === address)
@@ -1778,26 +1779,16 @@ app.get('/api/email/status/:address', async (req, res) => {
 
     const { data: allEntries } = await supabase
       .from('email_verifications')
-      .select('status, email_hash, verified_at')
+      .select('address, status, email_hash, verified_at')
 
     let found = null
     for (const entry of (allEntries || [])) {
       try {
-        if (decrypt(entry.address || '') === address) {
+        if (entry.address && decrypt(entry.address) === address) {
           found = entry
           break
         }
       } catch { /* skip — encrypted entries that don't match */ }
-    }
-
-    // Fallback: try matching without decryption (for entries where address might be stored differently)
-    if (!found) {
-      const { data: directMatch } = await supabase
-        .from('email_verifications')
-        .select('status, email_hash, verified_at')
-        .eq('address', encrypt(address))
-        .single()
-      if (directMatch) found = directMatch
     }
 
     res.json({

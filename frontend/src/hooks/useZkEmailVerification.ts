@@ -168,6 +168,8 @@ export function useZkEmailVerification() {
       setTestCode(null)
       setIsProcessing(false)
       setTransactionStatus(null)
+      // Cache so VerifyIdGate skips the API call on next page load
+      try { localStorage.setItem(`zk_verified_${address}`, 'true') } catch { /* ignore */ }
       return { success: true }
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Verification failed'
