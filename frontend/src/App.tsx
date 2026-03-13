@@ -14,6 +14,10 @@ import Explorer from './pages/Explorer'
 import HowItWorks from './pages/HowItWorks'
 import Privacy from './pages/Privacy'
 import Analytics from './pages/Analytics'
+import CycleDashboard from './pages/CycleDashboard'
+import InviteAccept from './pages/InviteAccept'
+import DisputeResolution from './pages/DisputeResolution'
+import VerifyIdentity from './pages/VerifyIdentity'
 
 function App() {
   return (
@@ -53,6 +57,10 @@ function App() {
           <Route path="circle/:circleId" element={<CircleDetail />} />
           <Route path="analytics/:circleId" element={<Analytics />} />
           <Route path="analytics" element={<Analytics />} />
+          <Route path="dashboard/:circleId" element={<CycleDashboard />} />
+          <Route path="invite/:code" element={<InviteAccept />} />
+          <Route path="disputes/:circleId" element={<DisputeResolution />} />
+          <Route path="verify-identity" element={<VerifyIdentity />} />
           <Route path="explorer" element={<Explorer />} />
           <Route path="how-it-works" element={<HowItWorks />} />
           <Route path="privacy" element={<Privacy />} />

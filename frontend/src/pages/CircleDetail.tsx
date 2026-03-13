@@ -21,6 +21,11 @@ import {
   Trash2,
   BarChart2,
   Flag,
+  Link2,
+  Gavel,
+  Bell,
+  BellOff,
+  LayoutDashboard,
 } from 'lucide-react'
 import { useCircleDetail } from '../hooks/useCircleDetail'
 import { useContribute } from '../hooks/useContribute'
@@ -31,6 +36,8 @@ import { useTransferMembership } from '../hooks/useTransferMembership'
 import { useVerifyMembership } from '../hooks/useVerifyMembership'
 import { useDisputeResolution } from '../hooks/useDisputeResolution'
 import { useJoinCircle } from '../hooks/useJoinCircle'
+import { useInviteLinks } from '../hooks/useInviteLinks'
+import { useAutoContribution } from '../hooks/useAutoContribution'
 import { dissolveCircle } from '../services/api'
 import NotificationBanner, { NotificationToggle } from '../components/NotificationBanner'
 import { useNotifications } from '../hooks/useNotifications'
@@ -57,6 +64,8 @@ export default function CircleDetail() {
   const { flagMissedContribution, isFlagging } = useDisputeResolution()
   const { joinCircle, isJoining, transactionStatus: joinStatus } = useJoinCircle()
   const { notifyPayoutTurn, notifyContributionDue, notifyCircleFull, isCircleEnabled } = useNotifications()
+  const { generateInvite, copyInviteLink, isProcessing: isGeneratingInvite } = useInviteLinks()
+  const { enableAutoContribution, disableAutoContribution, isScheduled, getSchedule, isProcessing: isTogglingSchedule } = useAutoContribution()
   const notifiedRef = useRef<Set<string>>(new Set())
 
   const [copied, setCopied] = useState(false)
@@ -313,28 +322,67 @@ export default function CircleDetail() {
             </div>
             
             {circle.status === 0 && (
-              <button
-                onClick={handleCopyLink}
-                className="btn-secondary inline-flex items-center gap-2"
-              >
-                {copied ? (
-                  <CheckCircle2 className="w-5 h-5" />
-                ) : (
-                  <Share2 className="w-5 h-5" />
-                )}
-                {copied ? 'Copied!' : 'Share Invite'}
-              </button>
+              <div className="flex gap-2 flex-wrap">
+                <button
+                  onClick={handleCopyLink}
+                  className="btn-secondary inline-flex items-center gap-2"
+                >
+                  {copied ? (
+                    <CheckCircle2 className="w-5 h-5" />
+                  ) : (
+                    <Share2 className="w-5 h-5" />
+                  )}
+                  {copied ? 'Copied!' : 'Share Link'}
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!circleId) return
+                    const result = await generateInvite(circleId)
+                    if (result.success && result.code) {
+                      await copyInviteLink(result.code)
+                      toast.success('Invite link copied!')
+                    } else {
+                      toast.error(result.error || 'Failed to generate invite')
+                    }
+                  }}
+                  disabled={isGeneratingInvite}
+                  className="btn-secondary inline-flex items-center gap-2"
+                >
+                  {isGeneratingInvite ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
+                  Invite Link
+                </button>
+              </div>
             )}
-            {/* Analytics button */}
-            {circleId && (
-              <Link
-                to={`/analytics/${circleId}`}
-                className="btn-secondary inline-flex items-center gap-2 text-sm"
-              >
-                <BarChart2 className="w-4 h-4" />
-                Analytics
-              </Link>
-            )}
+            {/* Quick links */}
+            <div className="flex gap-2 flex-wrap">
+              {circleId && (
+                <>
+                  <Link
+                    to={`/analytics/${circleId}`}
+                    className="btn-secondary inline-flex items-center gap-2 text-sm"
+                  >
+                    <BarChart2 className="w-4 h-4" />
+                    Analytics
+                  </Link>
+                  <Link
+                    to={`/dashboard/${circleId}`}
+                    className="btn-secondary inline-flex items-center gap-2 text-sm"
+                  >
+                    <LayoutDashboard className="w-4 h-4" />
+                    Dashboard
+                  </Link>
+                  {circle.status === 1 && isMember && (
+                    <Link
+                      to={`/disputes/${circleId}`}
+                      className="btn-secondary inline-flex items-center gap-2 text-sm"
+                    >
+                      <Gavel className="w-4 h-4" />
+                      Disputes
+                    </Link>
+                  )}
+                </>
+              )}
+            </div>
           </div>
         </motion.div>
 
@@ -705,6 +753,46 @@ export default function CircleDetail() {
                     Transfer Membership
                   </button>
                 </div>
+
+                {/* Auto-Contribution Toggle */}
+                {circleId && (
+                  <div className="border-t border-cream-200 pt-4 mt-4">
+                    <h4 className="text-sm font-semibold text-midnight-700 mb-3">Auto-Contribution</h4>
+                    <button
+                      onClick={async () => {
+                        if (isScheduled(circleId)) {
+                          await disableAutoContribution(circleId)
+                          toast.success('Auto-contribution disabled')
+                        } else {
+                          const result = await enableAutoContribution(circleId)
+                          if (result.success) {
+                            toast.success('Auto-contribution enabled! You'll be reminded before each cycle.')
+                          } else {
+                            toast.error(result.error || 'Failed to enable')
+                          }
+                        }
+                      }}
+                      disabled={isTogglingSchedule}
+                      className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl transition-colors text-sm font-medium ${
+                        isScheduled(circleId)
+                          ? 'bg-forest-50 text-forest-700 hover:bg-forest-100'
+                          : 'bg-cream-100 text-midnight-700 hover:bg-cream-200'
+                      }`}
+                    >
+                      {isTogglingSchedule ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : isScheduled(circleId) ? (
+                        <Bell className="w-4 h-4" />
+                      ) : (
+                        <BellOff className="w-4 h-4" />
+                      )}
+                      {isScheduled(circleId) ? 'Auto-Contribute: ON' : 'Enable Auto-Contribute'}
+                    </button>
+                    <p className="text-xs text-midnight-500 mt-1 text-center">
+                      {isScheduled(circleId) ? 'You'll be reminded before contribution deadlines' : 'Get reminders to contribute each cycle'}
+                    </p>
+                  </div>
+                )}
               </motion.div>
             )}
 

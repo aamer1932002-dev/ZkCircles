@@ -508,6 +508,261 @@ export async function checkTransactionStatus(txId: string): Promise<string> {
   }
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// INVITE LINKS (v11)
+// ══════════════════════════════════════════════════════════════════════════
+
+export interface InviteData {
+  valid: boolean
+  circleId: string
+  circleName?: string
+  contributionAmount: number
+  maxMembers: number
+  membersJoined: number
+  tokenId: string
+  expiresAt: string
+}
+
+export async function createInvite(data: {
+  circleId: string
+  creatorAddress: string
+  maxUses?: number
+  expiresInHours?: number
+}): Promise<{ success: boolean; code?: string; expiresAt?: string; error?: string }> {
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/invites`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
+    if (!response.ok) throw new Error('Failed to create invite')
+    return await response.json()
+  } catch (error) {
+    console.error('Invite creation error:', error)
+    return { success: false, error: 'Failed to create invite' }
+  }
+}
+
+export async function validateInvite(code: string): Promise<InviteData | null> {
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/invites/${encodeURIComponent(code)}`)
+    if (!response.ok) return null
+    return await response.json()
+  } catch {
+    return null
+  }
+}
+
+export async function useInvite(code: string): Promise<void> {
+  try {
+    await fetch(`${BACKEND_URL}/api/invites/${encodeURIComponent(code)}/use`, { method: 'POST' })
+  } catch { /* best effort */ }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// DISPUTE RESOLUTION (v11)
+// ══════════════════════════════════════════════════════════════════════════
+
+export interface DisputeData {
+  disputeId: string
+  circleId: string
+  accused: string
+  reporter: string
+  reason: number
+  votesFor: number
+  votesAgainst: number
+  status: number
+  cycle: number
+  transactionId?: string
+  createdAt: string
+  resolvedAt?: string
+  votes: { voter: string; voteFor: boolean; createdAt: string }[]
+}
+
+export async function fetchDisputes(circleId: string): Promise<DisputeData[]> {
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/disputes/${circleId}`)
+    if (!response.ok) throw new Error('Failed to fetch disputes')
+    const data = await response.json()
+    return data.disputes || []
+  } catch {
+    return []
+  }
+}
+
+export async function recordDispute(data: {
+  disputeId: string
+  circleId: string
+  accused: string
+  reporter: string
+  reason: number
+  cycle: number
+  transactionId: string
+}): Promise<void> {
+  try {
+    await fetch(`${BACKEND_URL}/api/disputes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
+  } catch (error) {
+    console.warn('Failed to record dispute:', error)
+  }
+}
+
+export async function recordDisputeVote(data: {
+  disputeId: string
+  voter: string
+  voteFor: boolean
+  transactionId: string
+}): Promise<void> {
+  try {
+    await fetch(`${BACKEND_URL}/api/disputes/${data.disputeId}/vote`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
+  } catch (error) {
+    console.warn('Failed to record dispute vote:', error)
+  }
+}
+
+export async function recordDisputeResolution(data: {
+  disputeId: string
+  status: number
+  transactionId: string
+}): Promise<void> {
+  try {
+    await fetch(`${BACKEND_URL}/api/disputes/${data.disputeId}/resolve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
+  } catch (error) {
+    console.warn('Failed to record dispute resolution:', error)
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// AUTO-CONTRIBUTION SCHEDULES (v11)
+// ══════════════════════════════════════════════════════════════════════════
+
+export interface ScheduleData {
+  circleId: string
+  enabled: boolean
+  notifyBeforeMinutes: number
+  lastNotifiedCycle: number
+  createdAt?: string
+}
+
+export async function fetchSchedules(address: string): Promise<ScheduleData[]> {
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/schedules/${address}`)
+    if (!response.ok) throw new Error('Failed to fetch schedules')
+    const data = await response.json()
+    return data.schedules || []
+  } catch {
+    return []
+  }
+}
+
+export async function saveSchedule(data: {
+  circleId: string
+  memberAddress: string
+  enabled: boolean
+  notifyBeforeMinutes?: number
+}): Promise<{ success: boolean }> {
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/schedules`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
+    if (!response.ok) throw new Error('Failed to save schedule')
+    return { success: true }
+  } catch {
+    return { success: false }
+  }
+}
+
+export async function deleteSchedule(circleId: string, address: string): Promise<void> {
+  try {
+    await fetch(`${BACKEND_URL}/api/schedules/${circleId}/${address}`, { method: 'DELETE' })
+  } catch { /* best effort */ }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// zkEMAIL IDENTITY VERIFICATION (v11)
+// ══════════════════════════════════════════════════════════════════════════
+
+export interface EmailVerificationStatus {
+  registered: boolean
+  verified: boolean
+  status: number
+  verifiedAt?: string
+}
+
+export async function registerEmailCommitment(data: {
+  address: string
+  emailHash: string
+  transactionId: string
+}): Promise<{ success: boolean }> {
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/email/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
+    if (!response.ok) throw new Error('Failed to register email')
+    return { success: true }
+  } catch {
+    return { success: false }
+  }
+}
+
+export async function sendEmailVerificationCode(address: string): Promise<{ success: boolean; testCode?: string }> {
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/email/send-code`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ address }),
+    })
+    if (!response.ok) throw new Error('Failed to send code')
+    return await response.json()
+  } catch {
+    return { success: false }
+  }
+}
+
+export async function verifyEmailCode(data: {
+  address: string
+  code: string
+  transactionId?: string
+}): Promise<{ success: boolean; verified: boolean; error?: string }> {
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/email/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    })
+    const result = await response.json()
+    if (!response.ok) return { success: false, verified: false, error: result.error }
+    return result
+  } catch {
+    return { success: false, verified: false, error: 'Network error' }
+  }
+}
+
+export async function checkEmailStatus(address: string): Promise<EmailVerificationStatus> {
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/email/status/${address}`)
+    if (!response.ok) throw new Error('Failed to check email status')
+    return await response.json()
+  } catch {
+    return { registered: false, verified: false, status: 0 }
+  }
+}
+
 // Mock data for development when backend is not available
 function getMockCirclesData(): FetchCirclesResponse {
   return {

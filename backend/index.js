@@ -94,7 +94,7 @@ app.get('/', (req, res) => {
     name: 'ZkCircles API',
     version: '1.0.0',
     status: 'running',
-    program: 'zk_circles_v10.aleo',
+    program: 'zk_circles_v11.aleo',
     network: 'testnet',
     mode: USE_MOCK ? 'mock' : 'production',
     endpoints: [
@@ -107,6 +107,19 @@ app.get('/', (req, res) => {
       'POST /api/circles/:circleId/members',
       'POST /api/contributions',
       'POST /api/payouts',
+      'POST /api/invites',
+      'GET  /api/invites/:code',
+      'GET  /api/disputes/:circleId',
+      'POST /api/disputes',
+      'POST /api/disputes/:disputeId/vote',
+      'POST /api/disputes/:disputeId/resolve',
+      'GET  /api/schedules/:address',
+      'POST /api/schedules',
+      'DELETE /api/schedules/:circleId/:address',
+      'POST /api/email/register',
+      'POST /api/email/send-code',
+      'POST /api/email/verify',
+      'GET  /api/email/status/:address',
     ]
   })
 })
@@ -1053,6 +1066,682 @@ app.delete('/api/circles/:circleId', async (req, res) => {
   } catch (error) {
     console.error('Error dissolving circle:', error)
     res.status(500).json({ error: 'Failed to dissolve circle' })
+  }
+})
+
+// ==================== INVITE LINKS (v11) ====================
+
+/**
+ * POST /api/invites
+ * Create an invite link for a circle
+ */
+app.post('/api/invites', async (req, res) => {
+  try {
+    const { circleId, creatorAddress, maxUses = 0, expiresInHours = 168 } = req.body
+
+    if (!circleId || !creatorAddress) {
+      return res.status(400).json({ error: 'circleId and creatorAddress are required' })
+    }
+
+    // Generate a short invite code (8 chars, alphanumeric)
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
+    let code = ''
+    const randomBytes = require('crypto').randomBytes(8)
+    for (let i = 0; i < 8; i++) {
+      code += chars[randomBytes[i] % chars.length]
+    }
+
+    const expiresAt = new Date(Date.now() + expiresInHours * 3600000).toISOString()
+
+    if (USE_MOCK) {
+      if (!mockData.invites) mockData.invites = []
+      mockData.invites.push({ code, circle_id: circleId, created_by: creatorAddress, expires_at: expiresAt, max_uses: maxUses, use_count: 0, active: true })
+      return res.json({ success: true, code, expiresAt })
+    }
+
+    const { error } = await supabase.from('invites').insert({
+      code,
+      circle_id: circleId,
+      created_by: encrypt(creatorAddress),
+      expires_at: expiresAt,
+      max_uses: maxUses,
+      use_count: 0,
+      active: true,
+    })
+    if (error) throw error
+
+    res.json({ success: true, code, expiresAt })
+  } catch (error) {
+    console.error('Error creating invite:', error)
+    res.status(500).json({ error: 'Failed to create invite' })
+  }
+})
+
+/**
+ * GET /api/invites/:code
+ * Validate and return invite details
+ */
+app.get('/api/invites/:code', async (req, res) => {
+  try {
+    const { code } = req.params
+
+    if (USE_MOCK) {
+      const invite = (mockData.invites || []).find(i => i.code === code)
+      if (!invite) return res.status(404).json({ error: 'Invite not found' })
+      const circle = mockData.circles.find(c => c.circle_id === invite.circle_id)
+      return res.json({
+        valid: invite.active && new Date(invite.expires_at) > new Date(),
+        circleId: invite.circle_id,
+        circleName: circle?.name || null,
+        contributionAmount: circle?.contribution_amount || 0,
+        maxMembers: circle?.max_members || 0,
+        membersJoined: circle?.members_joined || 0,
+        tokenId: circle?.token_id || '0field',
+        expiresAt: invite.expires_at,
+      })
+    }
+
+    const { data: invite, error } = await supabase
+      .from('invites')
+      .select('*')
+      .eq('code', code)
+      .single()
+
+    if (error || !invite) {
+      return res.status(404).json({ error: 'Invite not found' })
+    }
+
+    const isExpired = new Date(invite.expires_at) <= new Date()
+    const isMaxUsed = invite.max_uses > 0 && invite.use_count >= invite.max_uses
+    const isValid = invite.active && !isExpired && !isMaxUsed
+
+    // Get circle info
+    const { data: circle } = await supabase
+      .from('circles')
+      .select('*')
+      .eq('circle_id', invite.circle_id)
+      .single()
+
+    res.json({
+      valid: isValid,
+      circleId: invite.circle_id,
+      circleName: circle ? (circle.name ? decrypt(circle.name) : null) : null,
+      contributionAmount: circle?.contribution_amount || 0,
+      maxMembers: circle?.max_members || 0,
+      membersJoined: circle?.members_joined || 0,
+      tokenId: circle?.token_id || '0field',
+      expiresAt: invite.expires_at,
+    })
+  } catch (error) {
+    console.error('Error validating invite:', error)
+    res.status(500).json({ error: 'Failed to validate invite' })
+  }
+})
+
+/**
+ * POST /api/invites/:code/use
+ * Mark an invite as used (called after successful join)
+ */
+app.post('/api/invites/:code/use', async (req, res) => {
+  try {
+    const { code } = req.params
+
+    if (USE_MOCK) {
+      const invite = (mockData.invites || []).find(i => i.code === code)
+      if (invite) invite.use_count++
+      return res.json({ success: true })
+    }
+
+    await supabase.rpc('increment_invite_use', { invite_code: code }).catch(() => {
+      // Fallback if RPC not available
+      return supabase
+        .from('invites')
+        .update({ use_count: supabase.raw('use_count + 1') })
+        .eq('code', code)
+    })
+
+    res.json({ success: true })
+  } catch (error) {
+    console.error('Error using invite:', error)
+    res.status(500).json({ error: 'Failed to use invite' })
+  }
+})
+
+// ==================== DISPUTE RESOLUTION (v11) ====================
+
+/**
+ * GET /api/disputes/:circleId
+ * Get all disputes for a circle
+ */
+app.get('/api/disputes/:circleId', async (req, res) => {
+  try {
+    const { circleId } = req.params
+
+    if (USE_MOCK) {
+      return res.json({ disputes: mockData.disputes || [] })
+    }
+
+    const { data: disputes, error } = await supabase
+      .from('disputes')
+      .select('*')
+      .eq('circle_id', circleId)
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+
+    // Get votes for each dispute
+    const disputeIds = (disputes || []).map(d => d.dispute_id)
+    let allVotes = []
+    if (disputeIds.length > 0) {
+      const { data: votes } = await supabase
+        .from('dispute_votes')
+        .select('*')
+        .in('dispute_id', disputeIds)
+      allVotes = votes || []
+    }
+
+    const decrypted = (disputes || []).map(d => ({
+      disputeId: d.dispute_id,
+      circleId: d.circle_id,
+      accused: decrypt(d.accused),
+      reporter: decrypt(d.reporter),
+      reason: d.reason,
+      votesFor: d.votes_for,
+      votesAgainst: d.votes_against,
+      status: d.status,
+      cycle: d.cycle,
+      transactionId: d.transaction_id,
+      createdAt: d.created_at,
+      resolvedAt: d.resolved_at,
+      votes: allVotes
+        .filter(v => v.dispute_id === d.dispute_id)
+        .map(v => ({ voter: decrypt(v.voter), voteFor: v.vote_for, createdAt: v.created_at })),
+    }))
+
+    res.json({ disputes: decrypted })
+  } catch (error) {
+    console.error('Error fetching disputes:', error)
+    res.status(500).json({ error: 'Failed to fetch disputes' })
+  }
+})
+
+/**
+ * POST /api/disputes
+ * Record a new dispute (after on-chain create_dispute TX)
+ */
+app.post('/api/disputes', async (req, res) => {
+  try {
+    const { disputeId, circleId, accused, reporter, reason, cycle, transactionId } = req.body
+
+    if (USE_MOCK) {
+      if (!mockData.disputes) mockData.disputes = []
+      mockData.disputes.push({ disputeId, circleId, accused, reporter, reason, cycle, votesFor: 1, votesAgainst: 0, status: 0, transactionId, createdAt: new Date().toISOString() })
+      return res.json({ success: true })
+    }
+
+    const { error } = await supabase.from('disputes').insert({
+      dispute_id: disputeId,
+      circle_id: circleId,
+      accused: encrypt(accused),
+      reporter: encrypt(reporter),
+      reason,
+      votes_for: 1,
+      votes_against: 0,
+      status: 0,
+      cycle,
+      transaction_id: transactionId,
+    })
+    if (error) throw error
+
+    // Record reporter's vote
+    await supabase.from('dispute_votes').insert({
+      dispute_id: disputeId,
+      voter: encrypt(reporter),
+      vote_for: true,
+      transaction_id: transactionId,
+    })
+
+    res.json({ success: true })
+  } catch (error) {
+    console.error('Error creating dispute:', error)
+    res.status(500).json({ error: 'Failed to create dispute' })
+  }
+})
+
+/**
+ * POST /api/disputes/:disputeId/vote
+ * Record a dispute vote
+ */
+app.post('/api/disputes/:disputeId/vote', async (req, res) => {
+  try {
+    const { disputeId } = req.params
+    const { voter, voteFor, transactionId } = req.body
+
+    if (USE_MOCK) {
+      const d = (mockData.disputes || []).find(d => d.disputeId === disputeId)
+      if (d) { voteFor ? d.votesFor++ : d.votesAgainst++ }
+      return res.json({ success: true })
+    }
+
+    // Record the vote
+    const { error: voteError } = await supabase.from('dispute_votes').insert({
+      dispute_id: disputeId,
+      voter: encrypt(voter),
+      vote_for: voteFor,
+      transaction_id: transactionId,
+    })
+    if (voteError) throw voteError
+
+    // Update vote counts
+    const { data: dispute } = await supabase
+      .from('disputes')
+      .select('votes_for, votes_against')
+      .eq('dispute_id', disputeId)
+      .single()
+
+    if (dispute) {
+      const update = voteFor
+        ? { votes_for: dispute.votes_for + 1 }
+        : { votes_against: dispute.votes_against + 1 }
+      await supabase.from('disputes').update(update).eq('dispute_id', disputeId)
+    }
+
+    res.json({ success: true })
+  } catch (error) {
+    console.error('Error recording vote:', error)
+    res.status(500).json({ error: 'Failed to record vote' })
+  }
+})
+
+/**
+ * POST /api/disputes/:disputeId/resolve
+ * Mark a dispute as resolved
+ */
+app.post('/api/disputes/:disputeId/resolve', async (req, res) => {
+  try {
+    const { disputeId } = req.params
+    const { status, transactionId } = req.body
+
+    if (USE_MOCK) {
+      const d = (mockData.disputes || []).find(d => d.disputeId === disputeId)
+      if (d) d.status = status
+      return res.json({ success: true })
+    }
+
+    const { error } = await supabase.from('disputes').update({
+      status,
+      resolved_at: new Date().toISOString(),
+      transaction_id: transactionId,
+    }).eq('dispute_id', disputeId)
+
+    if (error) throw error
+    res.json({ success: true })
+  } catch (error) {
+    console.error('Error resolving dispute:', error)
+    res.status(500).json({ error: 'Failed to resolve dispute' })
+  }
+})
+
+// ==================== AUTO-CONTRIBUTION SCHEDULES (v11) ====================
+
+/**
+ * GET /api/schedules/:address
+ * Get all contribution schedules for a user
+ */
+app.get('/api/schedules/:address', async (req, res) => {
+  try {
+    const { address } = req.params
+
+    if (USE_MOCK) {
+      return res.json({ schedules: mockData.schedules || [] })
+    }
+
+    // Need to search through all schedules and decrypt to find matches
+    const { data: allSchedules, error } = await supabase
+      .from('contribution_schedules')
+      .select('*')
+    if (error) throw error
+
+    const userSchedules = (allSchedules || []).filter(s => {
+      try { return decrypt(s.member_address) === address } catch { return false }
+    }).map(s => ({
+      circleId: s.circle_id,
+      enabled: s.enabled,
+      notifyBeforeMinutes: s.notify_before_minutes,
+      lastNotifiedCycle: s.last_notified_cycle,
+      createdAt: s.created_at,
+    }))
+
+    res.json({ schedules: userSchedules })
+  } catch (error) {
+    console.error('Error fetching schedules:', error)
+    res.status(500).json({ error: 'Failed to fetch schedules' })
+  }
+})
+
+/**
+ * POST /api/schedules
+ * Create or update a contribution schedule
+ */
+app.post('/api/schedules', async (req, res) => {
+  try {
+    const { circleId, memberAddress, enabled = true, notifyBeforeMinutes = 60 } = req.body
+
+    if (USE_MOCK) {
+      if (!mockData.schedules) mockData.schedules = []
+      const existing = mockData.schedules.findIndex(s => s.circleId === circleId && s.memberAddress === memberAddress)
+      if (existing >= 0) {
+        mockData.schedules[existing] = { circleId, memberAddress, enabled, notifyBeforeMinutes }
+      } else {
+        mockData.schedules.push({ circleId, memberAddress, enabled, notifyBeforeMinutes })
+      }
+      return res.json({ success: true })
+    }
+
+    const encryptedAddress = encrypt(memberAddress)
+
+    // Upsert schedule
+    const { error } = await supabase
+      .from('contribution_schedules')
+      .upsert({
+        circle_id: circleId,
+        member_address: encryptedAddress,
+        enabled,
+        notify_before_minutes: notifyBeforeMinutes,
+      }, { onConflict: 'circle_id,member_address' })
+
+    if (error) throw error
+    res.json({ success: true })
+  } catch (error) {
+    console.error('Error saving schedule:', error)
+    res.status(500).json({ error: 'Failed to save schedule' })
+  }
+})
+
+/**
+ * DELETE /api/schedules/:circleId/:address
+ * Remove a contribution schedule
+ */
+app.delete('/api/schedules/:circleId/:address', async (req, res) => {
+  try {
+    const { circleId, address } = req.params
+
+    if (USE_MOCK) {
+      if (mockData.schedules) {
+        mockData.schedules = mockData.schedules.filter(s => !(s.circleId === circleId && s.memberAddress === address))
+      }
+      return res.json({ success: true })
+    }
+
+    // Find and delete the matching encrypted entry
+    const { data: allSchedules } = await supabase
+      .from('contribution_schedules')
+      .select('id, member_address')
+      .eq('circle_id', circleId)
+
+    for (const s of (allSchedules || [])) {
+      try {
+        if (decrypt(s.member_address) === address) {
+          await supabase.from('contribution_schedules').delete().eq('id', s.id)
+          break
+        }
+      } catch { /* skip */ }
+    }
+
+    res.json({ success: true })
+  } catch (error) {
+    console.error('Error deleting schedule:', error)
+    res.status(500).json({ error: 'Failed to delete schedule' })
+  }
+})
+
+/**
+ * GET /api/schedules/pending-notifications
+ * Get circles that need contribution notifications (for cron/worker)
+ */
+app.get('/api/schedules/pending-notifications', async (req, res) => {
+  try {
+    if (USE_MOCK) {
+      return res.json({ notifications: [] })
+    }
+
+    // Find active circles with enabled schedules where notification hasn't been sent for current cycle
+    const { data: schedules, error } = await supabase
+      .from('contribution_schedules')
+      .select('*, circles!inner(circle_id, current_cycle, status, contribution_amount, token_id)')
+      .eq('enabled', true)
+      .eq('circles.status', 1)
+
+    if (error) throw error
+
+    const pending = (schedules || []).filter(s =>
+      s.circles && s.last_notified_cycle < s.circles.current_cycle
+    ).map(s => ({
+      circleId: s.circle_id,
+      memberAddress: decrypt(s.member_address),
+      currentCycle: s.circles.current_cycle,
+      contributionAmount: s.circles.contribution_amount,
+      tokenId: s.circles.token_id || '0field',
+    }))
+
+    res.json({ notifications: pending })
+  } catch (error) {
+    console.error('Error fetching pending notifications:', error)
+    res.status(500).json({ error: 'Failed to fetch pending notifications' })
+  }
+})
+
+// ==================== zkEMAIL IDENTITY VERIFICATION (v11) ====================
+
+/**
+ * POST /api/email/register
+ * Register an email commitment (step 1: user commits email_hash)
+ */
+app.post('/api/email/register', async (req, res) => {
+  try {
+    const { address, emailHash, transactionId } = req.body
+
+    if (!address || !emailHash) {
+      return res.status(400).json({ error: 'address and emailHash are required' })
+    }
+
+    if (USE_MOCK) {
+      if (!mockData.emailVerifications) mockData.emailVerifications = []
+      mockData.emailVerifications.push({ address, emailHash, status: 0, transactionId })
+      return res.json({ success: true })
+    }
+
+    const { error } = await supabase.from('email_verifications').upsert({
+      address: encrypt(address),
+      email_hash: emailHash,
+      status: 0,
+      on_chain_tx: transactionId,
+      expires_at: new Date(Date.now() + 24 * 3600000).toISOString(),
+    }, { onConflict: 'address' })
+
+    if (error) throw error
+    res.json({ success: true })
+  } catch (error) {
+    console.error('Error registering email:', error)
+    res.status(500).json({ error: 'Failed to register email commitment' })
+  }
+})
+
+/**
+ * POST /api/email/send-code
+ * Generate and store a verification code hash (step 2)
+ * In production, this would send an actual email. For now it returns the code.
+ */
+app.post('/api/email/send-code', async (req, res) => {
+  try {
+    const { address } = req.body
+
+    if (!address) {
+      return res.status(400).json({ error: 'address is required' })
+    }
+
+    // Generate a 6-digit verification code
+    const code = require('crypto').randomInt(100000, 999999).toString()
+    const codeHash = require('crypto').createHash('sha256').update(code).digest('hex')
+
+    if (USE_MOCK) {
+      const entry = (mockData.emailVerifications || []).find(e => e.address === address)
+      if (entry) { entry.codeHash = codeHash; entry.status = 1 }
+      // In mock mode, return the code for testing
+      return res.json({ success: true, codeSent: true, testCode: code })
+    }
+
+    // Find the user's entry
+    const { data: allEntries } = await supabase
+      .from('email_verifications')
+      .select('*')
+
+    let targetId = null
+    for (const entry of (allEntries || [])) {
+      try {
+        if (decrypt(entry.address) === address) {
+          targetId = entry.id
+          break
+        }
+      } catch { /* skip */ }
+    }
+
+    if (!targetId) {
+      return res.status(404).json({ error: 'No email commitment found. Register first.' })
+    }
+
+    await supabase.from('email_verifications').update({
+      verification_code_hash: codeHash,
+      status: 1,
+      expires_at: new Date(Date.now() + 30 * 60000).toISOString(), // 30 min expiry
+    }).eq('id', targetId)
+
+    // In production, send actual email here via SendGrid/SES/etc.
+    // For testnet, return the code for easy testing
+    res.json({ success: true, codeSent: true, testCode: code })
+  } catch (error) {
+    console.error('Error sending code:', error)
+    res.status(500).json({ error: 'Failed to send verification code' })
+  }
+})
+
+/**
+ * POST /api/email/verify
+ * Verify the code and mark email as verified (step 3)
+ */
+app.post('/api/email/verify', async (req, res) => {
+  try {
+    const { address, code, transactionId } = req.body
+
+    if (!address || !code) {
+      return res.status(400).json({ error: 'address and code are required' })
+    }
+
+    const codeHash = require('crypto').createHash('sha256').update(code).digest('hex')
+
+    if (USE_MOCK) {
+      const entry = (mockData.emailVerifications || []).find(e => e.address === address)
+      if (!entry || entry.codeHash !== codeHash) {
+        return res.status(400).json({ error: 'Invalid verification code' })
+      }
+      entry.status = 2
+      return res.json({ success: true, verified: true })
+    }
+
+    // Find the user's entry
+    const { data: allEntries } = await supabase
+      .from('email_verifications')
+      .select('*')
+
+    let target = null
+    for (const entry of (allEntries || [])) {
+      try {
+        if (decrypt(entry.address) === address) {
+          target = entry
+          break
+        }
+      } catch { /* skip */ }
+    }
+
+    if (!target) {
+      return res.status(404).json({ error: 'No verification found' })
+    }
+
+    if (target.status === 2) {
+      return res.json({ success: true, verified: true, message: 'Already verified' })
+    }
+
+    if (target.verification_code_hash !== codeHash) {
+      return res.status(400).json({ error: 'Invalid verification code' })
+    }
+
+    if (new Date(target.expires_at) <= new Date()) {
+      return res.status(400).json({ error: 'Verification code expired. Request a new one.' })
+    }
+
+    await supabase.from('email_verifications').update({
+      status: 2,
+      verified_at: new Date().toISOString(),
+      verify_chain_tx: transactionId || null,
+    }).eq('id', target.id)
+
+    res.json({ success: true, verified: true })
+  } catch (error) {
+    console.error('Error verifying email:', error)
+    res.status(500).json({ error: 'Failed to verify email' })
+  }
+})
+
+/**
+ * GET /api/email/status/:address
+ * Check email verification status for an address
+ */
+app.get('/api/email/status/:address', async (req, res) => {
+  try {
+    const { address } = req.params
+
+    if (USE_MOCK) {
+      const entry = (mockData.emailVerifications || []).find(e => e.address === address)
+      return res.json({
+        registered: !!entry,
+        verified: entry?.status === 2,
+        status: entry?.status || 0,
+      })
+    }
+
+    const { data: allEntries } = await supabase
+      .from('email_verifications')
+      .select('status, email_hash, verified_at')
+
+    let found = null
+    for (const entry of (allEntries || [])) {
+      try {
+        if (decrypt(entry.address || '') === address) {
+          found = entry
+          break
+        }
+      } catch { /* skip — encrypted entries that don't match */ }
+    }
+
+    // Fallback: try matching without decryption (for entries where address might be stored differently)
+    if (!found) {
+      const { data: directMatch } = await supabase
+        .from('email_verifications')
+        .select('status, email_hash, verified_at')
+        .eq('address', encrypt(address))
+        .single()
+      if (directMatch) found = directMatch
+    }
+
+    res.json({
+      registered: !!found,
+      verified: found?.status === 2,
+      status: found?.status || 0,
+      verifiedAt: found?.verified_at || null,
+    })
+  } catch (error) {
+    console.error('Error checking email status:', error)
+    res.status(500).json({ error: 'Failed to check email status' })
   }
 })
 

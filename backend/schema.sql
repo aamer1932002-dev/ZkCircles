@@ -159,3 +159,127 @@ CREATE POLICY "Allow backend insert on contributions"
 CREATE POLICY "Allow backend insert on payouts"
     ON payouts FOR INSERT
     WITH CHECK (true);
+
+-- ══════════════════════════════════════════════════════════════════════════
+-- v11 additions: Invites, Disputes, Schedules, Email Verification
+-- ══════════════════════════════════════════════════════════════════════════
+
+-- Circle invite links table
+CREATE TABLE invites (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    code TEXT UNIQUE NOT NULL,              -- short invite code (8 chars)
+    circle_id TEXT NOT NULL REFERENCES circles(circle_id) ON DELETE CASCADE,
+    created_by TEXT NOT NULL,               -- encrypted creator address
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    max_uses SMALLINT NOT NULL DEFAULT 0,   -- 0 = unlimited
+    use_count SMALLINT NOT NULL DEFAULT 0,
+    active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX idx_invites_code ON invites(code);
+CREATE INDEX idx_invites_circle_id ON invites(circle_id);
+
+ALTER TABLE invites ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow public read access on invites"
+    ON invites FOR SELECT USING (true);
+CREATE POLICY "Allow backend insert on invites"
+    ON invites FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow backend update on invites"
+    ON invites FOR UPDATE USING (true);
+
+-- Disputes table (off-chain indexing of on-chain disputes)
+CREATE TABLE disputes (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    dispute_id TEXT UNIQUE NOT NULL,        -- on-chain dispute field hash
+    circle_id TEXT NOT NULL REFERENCES circles(circle_id) ON DELETE CASCADE,
+    accused TEXT NOT NULL,                  -- encrypted address
+    reporter TEXT NOT NULL,                 -- encrypted address
+    reason SMALLINT NOT NULL DEFAULT 0,     -- 0=missed, 1=suspicious, 2=collusion
+    votes_for SMALLINT NOT NULL DEFAULT 1,
+    votes_against SMALLINT NOT NULL DEFAULT 0,
+    status SMALLINT NOT NULL DEFAULT 0,     -- 0=open, 1=guilty, 2=innocent
+    cycle SMALLINT NOT NULL,
+    transaction_id TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    resolved_at TIMESTAMP WITH TIME ZONE
+);
+
+CREATE INDEX idx_disputes_circle_id ON disputes(circle_id);
+CREATE INDEX idx_disputes_status ON disputes(status);
+
+ALTER TABLE disputes ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow public read access on disputes"
+    ON disputes FOR SELECT USING (true);
+CREATE POLICY "Allow backend insert on disputes"
+    ON disputes FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow backend update on disputes"
+    ON disputes FOR UPDATE USING (true);
+
+-- Dispute votes table
+CREATE TABLE dispute_votes (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    dispute_id TEXT NOT NULL REFERENCES disputes(dispute_id) ON DELETE CASCADE,
+    voter TEXT NOT NULL,                    -- encrypted address
+    vote_for BOOLEAN NOT NULL,             -- true=guilty, false=innocent
+    transaction_id TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(dispute_id, voter)
+);
+
+ALTER TABLE dispute_votes ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow public read access on dispute_votes"
+    ON dispute_votes FOR SELECT USING (true);
+CREATE POLICY "Allow backend insert on dispute_votes"
+    ON dispute_votes FOR INSERT WITH CHECK (true);
+
+-- Auto-contribution schedules table
+CREATE TABLE contribution_schedules (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    circle_id TEXT NOT NULL REFERENCES circles(circle_id) ON DELETE CASCADE,
+    member_address TEXT NOT NULL,           -- encrypted address
+    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    notify_before_minutes INTEGER NOT NULL DEFAULT 60,
+    last_notified_cycle SMALLINT DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(circle_id, member_address)
+);
+
+CREATE INDEX idx_schedules_member ON contribution_schedules(member_address);
+
+ALTER TABLE contribution_schedules ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow public read access on contribution_schedules"
+    ON contribution_schedules FOR SELECT USING (true);
+CREATE POLICY "Allow backend insert on contribution_schedules"
+    ON contribution_schedules FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow backend update on contribution_schedules"
+    ON contribution_schedules FOR UPDATE USING (true);
+CREATE POLICY "Allow backend delete on contribution_schedules"
+    ON contribution_schedules FOR DELETE USING (true);
+
+-- Email verification table
+CREATE TABLE email_verifications (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    address TEXT NOT NULL,                      -- encrypted Aleo address
+    email_hash TEXT NOT NULL,                   -- hash of email (never store raw email)
+    verification_code_hash TEXT,                -- hash of the verification code
+    status SMALLINT NOT NULL DEFAULT 0,         -- 0=pending, 1=code_sent, 2=verified
+    on_chain_tx TEXT,                           -- tx id for register_email_commitment
+    verify_chain_tx TEXT,                       -- tx id for verify_email_commitment
+    expires_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    verified_at TIMESTAMP WITH TIME ZONE,
+    UNIQUE(address)
+);
+
+CREATE INDEX idx_email_verifications_address ON email_verifications(address);
+CREATE INDEX idx_email_verifications_status ON email_verifications(status);
+
+ALTER TABLE email_verifications ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow public read access on email_verifications"
+    ON email_verifications FOR SELECT USING (true);
+CREATE POLICY "Allow backend insert on email_verifications"
+    ON email_verifications FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow backend update on email_verifications"
+    ON email_verifications FOR UPDATE USING (true);
