@@ -1637,8 +1637,12 @@ app.post('/api/email/send-code', async (req, res) => {
       return res.json({ success: true, codeSent: true, testCode: code })
     }
 
-    // Find the user's entry (newest row wins)
-    const targetEntry = await findEntryByAddress(address)
+    // Find the user's entry (newest row wins) — retry once to handle race with register
+    let targetEntry = await findEntryByAddress(address)
+    if (!targetEntry) {
+      await new Promise(r => setTimeout(r, 1500))
+      targetEntry = await findEntryByAddress(address)
+    }
 
     if (!targetEntry) {
       return res.status(404).json({ error: 'No email commitment found. Register first.' })

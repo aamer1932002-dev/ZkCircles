@@ -39,6 +39,7 @@ export function useZkEmailVerification() {
       checkEmailStatus(address).then(s => {
         setStatus(s)
         if (s.verified) setStep('done')
+        else if (s.registered) setStep('sending_code')
       })
     }
   }, [connected, address])
@@ -193,6 +194,7 @@ export function useZkEmailVerification() {
     const result = await sendEmailVerificationCode(address)
     if (result.testCode) setTestCode(result.testCode)
     setIsProcessing(false)
+    return result
   }, [address])
 
   const refreshStatus = useCallback(async () => {

@@ -192,7 +192,7 @@ export default function VerifyIdentity() {
                   A 6-digit verification code has been generated for your account.
                 </p>
 
-                {testCode && (
+                {testCode ? (
                   <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4">
                     <p className="text-amber-800 text-sm">
                       <strong>Testnet:</strong> Email delivery is not configured yet. Use this code: <code className="bg-amber-100 px-2 py-1 rounded font-mono text-lg font-bold">{testCode}</code>
@@ -203,6 +203,20 @@ export default function VerifyIdentity() {
                       className="mt-2 text-xs text-amber-700 hover:text-amber-900 underline"
                     >
                       Auto-fill code
+                    </button>
+                  </div>
+                ) : (
+                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4">
+                    <p className="text-blue-800 text-sm mb-2">
+                      Check your email inbox, or click below to resend and reveal the code.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => resendCode()}
+                      disabled={isProcessing}
+                      className="text-xs text-blue-700 font-semibold hover:text-blue-900 underline flex items-center gap-1"
+                    >
+                      <RefreshCw className="w-3 h-3" /> Resend / Show Code
                     </button>
                   </div>
                 )}
