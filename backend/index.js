@@ -1621,31 +1621,53 @@ app.post('/api/email/send-code', async (req, res) => {
       expires_at: new Date(Date.now() + 30 * 60000).toISOString(), // 30 min expiry
     }).eq('id', targetEntry.id)
 
-    // Attempt to send email if address is stored and SMTP is configured
+    // Attempt to send email if address is stored
     let emailSent = false
-    if (targetEntry.email && process.env.SMTP_HOST) {
-      try {
-        const nodemailer = require('nodemailer')
-        const transporter = nodemailer.createTransport({
-          host: process.env.SMTP_HOST,
-          port: parseInt(process.env.SMTP_PORT || '587'),
-          secure: process.env.SMTP_SECURE === 'true',
-          auth: {
-            user: process.env.SMTP_USER,
-            pass: process.env.SMTP_PASS,
-          },
-        })
-        const recipientEmail = decrypt(targetEntry.email)
-        await transporter.sendMail({
-          from: process.env.SMTP_FROM || 'noreply@zkcircles.app',
-          to: recipientEmail,
-          subject: 'ZkCircles - Email Verification Code',
-          text: `Your ZkCircles verification code is: ${code}\n\nThis code expires in 30 minutes.`,
-          html: `<h2>ZkCircles Verification</h2><p>Your verification code is:</p><h1 style="font-family:monospace;letter-spacing:8px">${code}</h1><p>This code expires in 30 minutes.</p>`,
-        })
-        emailSent = true
-      } catch (emailErr) {
-        console.warn('Email send failed (SMTP not configured or error):', emailErr.message)
+    if (targetEntry.email) {
+      const recipientEmail = decrypt(targetEntry.email)
+      const subject = 'ZkCircles - Email Verification Code'
+      const text = `Your ZkCircles verification code is: ${code}\n\nThis code expires in 30 minutes.`
+      const html = `<div style="font-family:sans-serif;max-width:480px;margin:auto;padding:24px;border:1px solid #f3e8d4;border-radius:16px"><h2 style="color:#92400e">ZkCircles Verification</h2><p style="color:#44403c">Your verification code is:</p><div style="font-family:monospace;font-size:32px;font-weight:bold;letter-spacing:10px;color:#2c241f;background:#fef3c7;padding:16px;border-radius:8px;text-align:center">${code}</div><p style="color:#78716c;font-size:14px">This code expires in 30 minutes.</p></div>`
+
+      // Option 1: Resend (HTTP API — no SMTP needed, free tier)
+      if (!emailSent && process.env.RESEND_API_KEY) {
+        try {
+          const { Resend } = require('resend')
+          const resend = new Resend(process.env.RESEND_API_KEY)
+          await resend.emails.send({
+            from: process.env.RESEND_FROM || 'ZkCircles <noreply@zkcircles.app>',
+            to: recipientEmail,
+            subject,
+            text,
+            html,
+          })
+          emailSent = true
+        } catch (e) {
+          console.warn('Resend delivery failed:', e.message)
+        }
+      }
+
+      // Option 2: SMTP via nodemailer
+      if (!emailSent && process.env.SMTP_HOST) {
+        try {
+          const nodemailer = require('nodemailer')
+          const transporter = nodemailer.createTransport({
+            host: process.env.SMTP_HOST,
+            port: parseInt(process.env.SMTP_PORT || '587'),
+            secure: process.env.SMTP_SECURE === 'true',
+            auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+          })
+          await transporter.sendMail({
+            from: process.env.SMTP_FROM || 'noreply@zkcircles.app',
+            to: recipientEmail,
+            subject,
+            text,
+            html,
+          })
+          emailSent = true
+        } catch (e) {
+          console.warn('SMTP delivery failed:', e.message)
+        }
       }
     }
 
