@@ -28,9 +28,13 @@ export function isMembershipRecord(r: any, pt?: string): boolean {
     return 'contribution_amount' in r.data && !('cycle' in r.data)
   }
   if (pt) {
-    return pt.includes('contribution_amount') && !/(\bcycle\b.*:)/.test(pt)
+    return pt.includes('contribution_amount') && !/\bcycle\b/.test(pt)
   }
-  return true // unknown structure — allow and let the wallet reject if wrong
+  // Unknown structure — conservative: only allow if the record's ciphertext /
+  // plaintext string is not available AND no data object. The wallet will
+  // validate on execution. We allow it to avoid incorrectly filtering valid
+  // records that lack parsed data, but we tighten at the cache layer instead.
+  return true
 }
 
 // ─── Circle matching ─────────────────────────────────────────────────────────
@@ -121,6 +125,16 @@ export async function resolveCachedRecord(
   cached: string,
   decrypt?: (ct: string) => Promise<any>
 ): Promise<string | null> {
+  // ── Guard: reject ContributionReceipt / PayoutReceipt plaintext in cache ──
+  // If the cached value is a plaintext that contains "cycle" but is missing
+  // "contribution_amount", it's the wrong record type. Discard it.
+  if (!cached.startsWith('record1')) {
+    if (/\bcycle\b/.test(cached) && !cached.includes('contribution_amount')) {
+      console.warn('[resolveCachedRecord] Discarding wrong-type record (ContributionReceipt/PayoutReceipt) from cache.')
+      return null
+    }
+  }
+
   // Plaintext with _nonce — ideal Aleo record format
   if (!cached.startsWith('record1') && cached.includes('_nonce')) {
     return cached

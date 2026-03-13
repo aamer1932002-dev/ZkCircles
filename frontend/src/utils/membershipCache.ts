@@ -122,6 +122,24 @@ export async function fetchRecordCiphertextFromChain(
 }
 
 /**
+ * Return true only if the string looks like a CircleMembership plaintext.
+ * CircleMembership has `contribution_amount`; ContributionReceipt has `cycle`;
+ * PayoutReceipt has `cycle` and no `amount`. We must never cache the wrong type.
+ *
+ * This check is applied both on decrypted plaintexts and on cached values to
+ * guard against Shield Wallet's decrypt() returning the wrong record from its
+ * internal queue.
+ */
+function isCircleMembershipPlaintext(s: string): boolean {
+  // Must contain contribution_amount
+  if (!s.includes('contribution_amount')) return false
+  // Must NOT contain a "cycle" entry (ContributionReceipt / PayoutReceipt)
+  // Use a simple heuristic: if the string has " cycle:" or "\ncycle" it's wrong.
+  if (/\bcycle\b/.test(s)) return false
+  return true
+}
+
+/**
  * Decrypt a record ciphertext immediately (using the wallet view key) and cache
  * the resulting plaintext+nonce so the NEXT contribution/claim cycle can use it
  * WITHOUT waiting for the wallet to index the record.
@@ -133,6 +151,10 @@ export async function fetchRecordCiphertextFromChain(
  *
  * Always returns a non-null string (falls back to the raw ciphertext on error
  * so callers can still attempt the transaction).
+ *
+ * IMPORTANT: Shield Wallet's decrypt() may return ANY pending record from its
+ * internal queue, not necessarily the one matching the provided ciphertext.
+ * We validate the returned plaintext is a CircleMembership before caching.
  */
 export async function decryptAndCacheMembership(
   address: string,
@@ -145,8 +167,20 @@ export async function decryptAndCacheMembership(
     const plaintext: string =
       typeof dec === 'string' ? dec : ((dec as any)?.text ?? String(dec))
     if (plaintext && plaintext.length > 10) {
+      // ── GUARD: reject ContributionReceipt / PayoutReceipt plaintexts ──
+      // Shield Wallet's decrypt() sometimes returns a different record from
+      // its internal queue rather than the specific ciphertext requested.
+      if (!isCircleMembershipPlaintext(plaintext)) {
+        console.warn(
+          '[Cache] decrypt() returned wrong record type (has "cycle", missing "contribution_amount"). ' +
+          'Falling back to raw ciphertext. Plaintext preview:',
+          plaintext.slice(0, 120)
+        )
+        setCachedMembership(address, circleId, ciphertext)
+        return ciphertext
+      }
       setCachedMembership(address, circleId, plaintext)
-      console.log('[Cache] Decrypted & stored plaintext for', circleId.slice(0, 12) + '…')
+      console.log('[Cache] Decrypted & stored CircleMembership plaintext for', circleId.slice(0, 12) + '…')
       return plaintext
     }
   } catch (e) {

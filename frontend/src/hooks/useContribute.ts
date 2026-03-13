@@ -148,6 +148,29 @@ export function useContribute() {
 
       setTransactionStatus('Awaiting wallet approval…')
 
+      // ── Final guard: ensure recordInput is a CircleMembership ────────────
+      // Shield Wallet's decrypt() can return the wrong record type (e.g. a
+      // ContributionReceipt) if its internal queue is out of order. Catch this
+      // before we hit the wallet to get a clear error instead of a cryptic one.
+      if (!recordInput.startsWith('record1')) {
+        // It's a plaintext — check record type
+        if (/\bcycle\b/.test(recordInput) && !recordInput.includes('contribution_amount')) {
+          console.error('[Contribute] recordInput is wrong type (ContributionReceipt/PayoutReceipt). Clearing cache.', recordInput.slice(0, 200))
+          clearCachedMembership(address, circleId)
+          setIsContributing(false)
+          setTransactionStatus(null)
+          return {
+            success: false,
+            error:
+              'Wrong record type in cache (ContributionReceipt instead of CircleMembership).\n\n' +
+              'This is a known Shield Wallet quirk. Please:\n' +
+              '• Open Shield Wallet → tap the sync/refresh icon\n' +
+              '• Wait 30 seconds, then try again\n' +
+              '• The correct record will be fetched automatically on retry.',
+          }
+        }
+      }
+
       // ── Step 3: Submit contribute(membership, cycle) ─────────────────────
       const fmt = recordInput.startsWith('record1')
         ? 'ciphertext'
