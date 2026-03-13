@@ -17,12 +17,16 @@
 //       test_usad_stablecoin.aleo  (token_id = 2field)
 //   - contribute_usdcx / claim_payout_usdcx
 //   - contribute_usad  / claim_payout_usad
+// v10 additions:
+//   - cycle_count mapping:  on-chain count of contributors per (circle, cycle)
+//   - claim_payout* asserts cycle_count == max_members (fully on-chain eligibility)
+//   - flag_missed_contribution can also flag completed circles (status 1 or 2)
 
 import credits.aleo;
 import test_usdcx_stablecoin.aleo;
 import test_usad_stablecoin.aleo;
 
-program zk_circles_v9.aleo {
+program zk_circles_v10.aleo {
 
     // circle status values
     // 0 = forming   (accepting members)
@@ -59,6 +63,12 @@ program zk_circles_v9.aleo {
         cycle: u8
     }
 
+    // Used to key the cycle_count mapping (contributors per cycle)
+    struct CycleKey {
+        circle_id: field,
+        cycle: u8
+    }
+
     // Private records — encrypted for the owner's key only
     record CircleMembership {
         owner: address,
@@ -89,6 +99,8 @@ program zk_circles_v9.aleo {
     mapping defaults: field => u8;
     // hash(circle_id, defaulter, cycle) -> true once flagged (prevents duplicate flags)
     mapping default_flags: field => bool;
+    // hash(circle_id, cycle) -> number of members who contributed this cycle (on-chain count)
+    mapping cycle_count: field => u8;
 
     @noupgrade
     async constructor() {}
@@ -216,6 +228,11 @@ program zk_circles_v9.aleo {
         let contrib_key: field = BHP256::hash_to_field(ContribKey { circle_id: circle_id, cycle: cycle, member_addr: contributor });
         assert(!contributions.get_or_use(contrib_key, false));
         contributions.set(contrib_key, true);
+
+        // Increment on-chain contributor count for this cycle
+        let ck: field = BHP256::hash_to_field(CycleKey { circle_id: circle_id, cycle: cycle });
+        let cc: u8 = cycle_count.get_or_use(ck, 0u8);
+        cycle_count.set(ck, cc + 1u8);
     }
 
     // Pays out the winner for this cycle by transferring
@@ -250,6 +267,10 @@ program zk_circles_v9.aleo {
         assert_eq(info.status, 1u8);
         assert_eq(info.current_cycle, cycle);
         assert_eq(info.token_id, 0field);     // credits circles only — use claim_payout_token for ARC-20
+
+        // On-chain: verify ALL members contributed before allowing payout
+        let ck: field = BHP256::hash_to_field(CycleKey { circle_id: circle_id, cycle: cycle });
+        assert_eq(cycle_count.get(ck), info.max_members);
 
         // Verify payout matches exactly: every member contributed once per cycle
         let expected: u64 = info.contribution_amount * (info.max_members as u64);
@@ -375,6 +396,11 @@ program zk_circles_v9.aleo {
         let contrib_key: field = BHP256::hash_to_field(ContribKey { circle_id: circle_id, cycle: cycle, member_addr: contributor });
         assert(!contributions.get_or_use(contrib_key, false));
         contributions.set(contrib_key, true);
+
+        // Increment on-chain contributor count for this cycle
+        let ck: field = BHP256::hash_to_field(CycleKey { circle_id: circle_id, cycle: cycle });
+        let cc: u8 = cycle_count.get_or_use(ck, 0u8);
+        cycle_count.set(ck, cc + 1u8);
     }
 
     // Pays out the USDCx winner for this cycle from THIS PROGRAM'S USDCx balance.
@@ -404,6 +430,10 @@ program zk_circles_v9.aleo {
         assert_eq(info.status, 1u8);
         assert_eq(info.current_cycle, cycle);
         assert_eq(info.token_id, 1field);         // USDCx circles only
+
+        // On-chain: verify ALL members contributed before allowing payout
+        let ck: field = BHP256::hash_to_field(CycleKey { circle_id: circle_id, cycle: cycle });
+        assert_eq(cycle_count.get(ck), info.max_members);
 
         let expected: u64 = info.contribution_amount * (info.max_members as u64);
         assert_eq(payout_amount, expected);
@@ -464,6 +494,11 @@ program zk_circles_v9.aleo {
         let contrib_key: field = BHP256::hash_to_field(ContribKey { circle_id: circle_id, cycle: cycle, member_addr: contributor });
         assert(!contributions.get_or_use(contrib_key, false));
         contributions.set(contrib_key, true);
+
+        // Increment on-chain contributor count for this cycle
+        let ck: field = BHP256::hash_to_field(CycleKey { circle_id: circle_id, cycle: cycle });
+        let cc: u8 = cycle_count.get_or_use(ck, 0u8);
+        cycle_count.set(ck, cc + 1u8);
     }
 
     // Pays out the USAD winner for this cycle from THIS PROGRAM'S USAD balance.
@@ -493,6 +528,10 @@ program zk_circles_v9.aleo {
         assert_eq(info.status, 1u8);
         assert_eq(info.current_cycle, cycle);
         assert_eq(info.token_id, 2field);         // USAD circles only
+
+        // On-chain: verify ALL members contributed before allowing payout
+        let ck: field = BHP256::hash_to_field(CycleKey { circle_id: circle_id, cycle: cycle });
+        assert_eq(cycle_count.get(ck), info.max_members);
 
         let expected: u64 = info.contribution_amount * (info.max_members as u64);
         assert_eq(payout_amount, expected);
@@ -538,10 +577,11 @@ program zk_circles_v9.aleo {
         reporter: address
     ) {
         let info: CircleInfo = circles.get(circle_id);
-        assert_eq(info.status, 1u8);
+        // Allow flagging in active (1) or completed (2) circles
+        assert(info.status == 1u8 || info.status == 2u8);
 
-        // The cycle must already be in the past
-        assert(info.current_cycle > cycle);
+        // The cycle must already be in the past (for active) or any cycle (for completed)
+        assert(info.current_cycle > cycle || info.status == 2u8);
 
         // Reporter must be an active member
         let reporter_key: field = BHP256::hash_to_field(MemberKey { circle_id: circle_id, member_addr: reporter });

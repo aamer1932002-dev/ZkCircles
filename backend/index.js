@@ -94,7 +94,7 @@ app.get('/', (req, res) => {
     name: 'ZkCircles API',
     version: '1.0.0',
     status: 'running',
-    program: 'zk_circles_v6.aleo',
+    program: 'zk_circles_v10.aleo',
     network: 'testnet',
     mode: USE_MOCK ? 'mock' : 'production',
     endpoints: [
@@ -103,6 +103,7 @@ app.get('/', (req, res) => {
       'GET  /api/circles/:circleId',
       'GET  /api/circles/member/:address',
       'POST /api/circles',
+      'POST /api/circles/batch',
       'POST /api/circles/:circleId/members',
       'POST /api/contributions',
       'POST /api/payouts',
@@ -479,6 +480,70 @@ app.get('/api/circles/member/:address', async (req, res) => {
     res.json(decryptedCircles)
   } catch (error) {
     console.error('Error fetching member circles:', error)
+    res.status(500).json({ error: 'Failed to fetch circles', details: error.message })
+  }
+})
+
+/**
+ * POST /api/circles/batch
+ * Fetch multiple circles by ID in a single request.
+ * Body: { circleIds: string[] }
+ */
+app.post('/api/circles/batch', async (req, res) => {
+  try {
+    const { circleIds } = req.body
+    if (!Array.isArray(circleIds) || circleIds.length === 0) {
+      return res.status(400).json({ error: 'circleIds must be a non-empty array' })
+    }
+    // Cap to prevent abuse
+    const ids = circleIds.slice(0, 50)
+
+    if (USE_MOCK) {
+      const found = mockData.circles
+        .filter(c => ids.includes(c.circle_id))
+        .map(c => ({
+          id: c.circle_id,
+          name: c.name,
+          creator: c.creator,
+          contributionAmount: c.contribution_amount,
+          maxMembers: c.max_members,
+          cycleDurationBlocks: c.cycle_duration_blocks,
+          totalCycles: c.total_cycles,
+          status: c.status,
+          currentCycle: c.current_cycle,
+          membersJoined: c.members_joined,
+          createdAt: c.created_at,
+          tokenId: c.token_id || '0field',
+        }))
+      return res.json({ circles: found })
+    }
+
+    const { data: circles, error } = await supabase
+      .from('circles')
+      .select('*')
+      .in('circle_id', ids)
+
+    if (error) throw error
+
+    const decrypted = (circles || []).map(circle => ({
+      id: circle.circle_id,
+      name: circle.name ? decrypt(circle.name) : null,
+      creator: decrypt(circle.creator),
+      contributionAmount: circle.contribution_amount,
+      maxMembers: circle.max_members,
+      cycleDurationBlocks: circle.cycle_duration_blocks,
+      totalCycles: circle.total_cycles,
+      status: circle.status,
+      currentCycle: circle.current_cycle,
+      membersJoined: circle.members_joined,
+      startBlock: circle.start_block,
+      createdAt: circle.created_at,
+      tokenId: circle.token_id || '0field',
+    }))
+
+    res.json({ circles: decrypted })
+  } catch (error) {
+    console.error('Error fetching batch circles:', error)
     res.status(500).json({ error: 'Failed to fetch circles', details: error.message })
   }
 })

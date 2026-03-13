@@ -11,10 +11,10 @@
 // v6 Deployment TX: at1z5rendz2gtpeq7u2ldsnmy8mrcvlxasn373n9j5j54v8t32lxcrsq7u7wh
 // v7 adds: flag_missed_contribution, defaults mapping, default_flags mapping
 // v8 adds: token_id in CircleInfo, stablecoin support via token_registry.aleo
-// v9 adds: direct imports of test_usdcx_stablecoin.aleo + test_usad_stablecoin.aleo
-//         token_id = 1field (USDCx) / 2field (USAD) — no token_registry.aleo needed
+// v10 adds: on-chain cycle_count mapping, claim_payout asserts all contributed,
+//          dispute flagging extended to completed circles
 export const PROGRAM_ID =
-  (import.meta.env.VITE_PROGRAM_ID as string) || 'zk_circles_v9.aleo'
+  (import.meta.env.VITE_PROGRAM_ID as string) || 'zk_circles_v10.aleo'
 
 // ── Backend API ──────────────────────────────────────────────────────────────
 export const BACKEND_URL =
@@ -33,7 +33,7 @@ export const FEE_DISPUTE      =   300_000   // 0.3 ALEO  (flag_missed_contributi
 // token_id = 0field means Aleo native credits.
 // 1field = test_usdcx_stablecoin.aleo (USDCx on testnet)
 // 2field = test_usad_stablecoin.aleo  (USAD on testnet)
-// These are internal identifiers used inside zk_circles_v9.aleo to route
+// These are internal identifiers used inside zk_circles_v10.aleo to route
 // to the correct stablecoin transition — NOT token_registry token IDs.
 export const TOKEN_ID_ALEO  = '0field'
 export const TOKEN_ID_USDCX = '1field'

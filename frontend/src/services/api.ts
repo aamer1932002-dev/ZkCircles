@@ -180,6 +180,28 @@ export async function fetchMyCircles(address: string): Promise<CircleData[]> {
 }
 
 /**
+ * Fetch multiple circles in a single request (batch endpoint).
+ * Returns an empty array when the backend is unavailable.
+ */
+export async function fetchCirclesBatch(circleIds: string[]): Promise<CircleData[]> {
+  if (circleIds.length === 0) return []
+
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/circles/batch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ circleIds }),
+    })
+    if (!response.ok) throw new Error('Batch fetch failed')
+    const data = await response.json()
+    return data.circles ?? []
+  } catch (error) {
+    console.error('Batch API Error:', error)
+    return []
+  }
+}
+
+/**
  * Get circle details
  */
 export async function getCircleDetail(circleId: string): Promise<CircleDetailResponse> {

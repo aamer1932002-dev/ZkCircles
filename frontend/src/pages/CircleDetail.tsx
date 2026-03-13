@@ -168,9 +168,7 @@ export default function CircleDetail() {
 
   const handleFlagMissed = async (defaulterAddress: string, cycle: number) => {
     if (!circleId || !connected) return
-    // The caller's membership record must be passed; requestRecords is not available here
-    // so we pass a placeholder — the wallet will prompt the user to select the correct record
-    const result = await flagMissedContribution('', defaulterAddress, cycle)
+    const result = await flagMissedContribution(circleId, defaulterAddress, cycle)
     if (result.success) {
       toast.success(`Missed payment flagged on-chain! TX: ${result.transactionId?.slice(0, 12)}...`)
     } else {
