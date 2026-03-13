@@ -20,6 +20,7 @@ export function useZkEmailVerification() {
   const wallet = useWallet() as any
   const { connected, address, executeTransaction } = wallet
   const [isProcessing, setIsProcessing] = useState(false)
+  const [onChainPending, setOnChainPending] = useState(false)
   const [status, setStatus] = useState<EmailVerificationStatus>({
     registered: false,
     verified: false,
@@ -37,7 +38,6 @@ export function useZkEmailVerification() {
 
   const registerEmail = useCallback(async (email: string): Promise<VerificationResult> => {
     if (!connected || !address) return { success: false, error: 'Wallet not connected' }
-    if (!executeTransaction) return { success: false, error: 'Wallet does not support transactions' }
 
     setIsProcessing(true)
     setStep('registering')
@@ -46,18 +46,27 @@ export function useZkEmailVerification() {
       // Hash the email off-chain (never transmitted in plaintext to chain)
       const emailHash = await hashToField(email.toLowerCase().trim())
 
-      // Submit on-chain commitment
-      const result = await executeTransaction({
-        program: PROGRAM_ID,
-        function: 'register_email_commitment',
-        inputs: [emailHash],
-        fee: FEE_EMAIL_REGISTER,
-        privateFee: false,
-      })
+      // Fire on-chain commitment in the background — non-blocking.
+      // The wallet may reject or the tx may fail; either way backend verification is sufficient.
+      let txId = 'backend-only'
+      if (executeTransaction) {
+        setOnChainPending(true)
+        executeTransaction({
+          program: PROGRAM_ID,
+          function: 'register_email_commitment',
+          inputs: [emailHash],
+          fee: FEE_EMAIL_REGISTER,
+          privateFee: false,
+        }).then((result: any) => {
+          txId = String(result?.transactionId || result || 'submitted')
+        }).catch((err: any) => {
+          console.warn('[zkEmail] On-chain commitment rejected/failed (non-fatal):', err?.message || err)
+        }).finally(() => {
+          setOnChainPending(false)
+        })
+      }
 
-      const txId = String((result as any)?.transactionId || result)
-
-      // Register with backend (pass email so backend can send verification codes)
+      // Register with backend immediately (don't wait for on-chain confirmation)
       await registerEmailCommitment({
         address,
         emailHash,
@@ -100,29 +109,24 @@ export function useZkEmailVerification() {
         return { success: false, error: result.error || 'Invalid code' }
       }
 
-      // Optionally confirm on-chain (if wallet supports it)
-      let txId: string | undefined
+      // Optionally confirm on-chain (non-blocking — backend verification is sufficient)
       if (executeTransaction) {
-        try {
-          const emailHash = await hashToField(address) // simplified — uses address as proxy
-          const onChainResult = await executeTransaction({
-            program: PROGRAM_ID,
-            function: 'verify_email_commitment',
-            inputs: [emailHash],
-            fee: FEE_EMAIL_VERIFY,
-            privateFee: false,
-          })
-          txId = String((onChainResult as any)?.transactionId || onChainResult)
-        } catch {
-          // On-chain verification is optional; backend verification is sufficient
-        }
+        executeTransaction({
+          program: PROGRAM_ID,
+          function: 'verify_email_commitment',
+          inputs: [`${address}field`.replace('aleo1', '') + 'field'], // placeholder field value
+          fee: FEE_EMAIL_VERIFY,
+          privateFee: false,
+        }).catch((err: any) => {
+          console.warn('[zkEmail] On-chain verify rejected/failed (non-fatal):', err?.message || err)
+        })
       }
 
       setStatus({ registered: true, verified: true, status: 2 })
       setStep('done')
       setTestCode(null)
       setIsProcessing(false)
-      return { success: true, transactionId: txId }
+      return { success: true }
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Verification failed'
       console.error('[zkEmail] Verify error:', error)
@@ -153,6 +157,7 @@ export function useZkEmailVerification() {
     resendCode,
     refreshStatus,
     isProcessing,
+    onChainPending,
     status,
     step,
     testCode,

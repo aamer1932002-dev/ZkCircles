@@ -32,6 +32,7 @@ export default function VerifyIdentity() {
     status,
     testCode,
     isProcessing,
+    onChainPending,
   } = useZkEmailVerification()
 
   const [email, setEmail] = useState('')
@@ -115,7 +116,19 @@ export default function VerifyIdentity() {
             className="mb-6 bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center gap-3"
           >
             <Loader2 className="w-5 h-5 text-amber-600 animate-spin flex-shrink-0" />
-            <span className="text-amber-800 text-sm">Processing transaction on-chain...</span>
+            <span className="text-amber-800 text-sm">Processing...</span>
+          </motion.div>
+        )}
+
+        {/* Non-blocking on-chain notice */}
+        {onChainPending && !isProcessing && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6 bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center gap-3"
+          >
+            <Loader2 className="w-5 h-5 text-blue-500 animate-spin flex-shrink-0" />
+            <span className="text-blue-800 text-sm">On-chain commitment submitting in background — you can continue.</span>
           </motion.div>
         )}
 
