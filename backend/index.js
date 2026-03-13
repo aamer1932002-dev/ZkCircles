@@ -1565,7 +1565,16 @@ app.post('/api/email/register', async (req, res) => {
 
     const { error } = await supabase.from('email_verifications').upsert(upsertData, { onConflict: 'address' })
 
-    if (error) throw error
+    if (error) {
+      // If the email column doesn't exist yet, retry without it
+      if (email && (error.message?.includes('email') || error.code === '42703')) {
+        delete upsertData.email
+        const { error: error2 } = await supabase.from('email_verifications').upsert(upsertData, { onConflict: 'address' })
+        if (error2) throw error2
+      } else {
+        throw error
+      }
+    }
     res.json({ success: true })
   } catch (error) {
     console.error('Error registering email:', error)
