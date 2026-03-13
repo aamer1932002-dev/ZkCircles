@@ -8,9 +8,9 @@ import { checkEmailStatus } from '../services/api'
 
 const navLinks = [
   { path: '/', label: 'Home', icon: Circle },
+  { path: '/verify-identity', label: 'Verify ID', icon: BadgeCheck },
   { path: '/my-circles', label: 'My Circles', icon: Users },
   { path: '/explorer', label: 'Explorer', icon: Compass },
-  { path: '/verify-identity', label: 'Verify ID', icon: BadgeCheck },
   { path: '/how-it-works', label: 'How It Works', icon: BookOpen },
   { path: '/privacy', label: 'Privacy', icon: Shield },
 ]

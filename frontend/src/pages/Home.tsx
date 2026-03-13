@@ -8,7 +8,9 @@ import {
   ArrowRight, 
   Lock,
   Eye,
-  CircleDot
+  CircleDot,
+  CheckCircle2,
+  XCircle
 } from 'lucide-react'
 import ZkCirclesIllustration from '../components/ZkCirclesIllustration'
 
@@ -150,6 +152,25 @@ export default function Home() {
                 )}
               </div>
 
+              {/* Trust badges — inspired by NullPay */}
+              <div className="flex flex-wrap gap-2 mb-10">
+                {[
+                  '100% Private',
+                  'ZK Native',
+                  'Built on Aleo',
+                  'Non-Custodial',
+                  'Trustless',
+                ].map((badge) => (
+                  <span
+                    key={badge}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-midnight-900/90 text-amber-400 border border-amber-500/30 tracking-wide"
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                    {badge}
+                  </span>
+                ))}
+              </div>
+
               {/* Stats */}
               <div className="grid grid-cols-3 gap-6">
                 {stats.map((stat, index) => (
@@ -272,9 +293,12 @@ export default function Home() {
                   <div className="hidden lg:block absolute top-10 left-[60%] w-full h-0.5 bg-gradient-to-r from-amber-300 to-transparent" />
                 )}
                 
-                <div className="bg-white rounded-3xl p-6 shadow-warm border border-cream-200 relative">
-                  <div className="w-12 h-12 bg-gradient-to-br from-amber-500 to-amber-600 rounded-full flex items-center justify-center text-white font-display font-bold text-lg mb-4">
-                    {item.step}
+                <div className="bg-white rounded-3xl p-6 shadow-warm border border-cream-200 relative group hover:border-amber-300 hover:shadow-amber-100/60 transition-all">
+                  {/* NullPay-style two-digit step number */}
+                  <div className="flex items-start gap-3 mb-4">
+                    <span className="font-display text-4xl font-black text-amber-200 leading-none select-none group-hover:text-amber-300 transition-colors">
+                      {String(item.step).padStart(2, '0')}
+                    </span>
                   </div>
                   <h3 className="font-display text-lg font-semibold text-midnight-900 mb-2">
                     {item.title}
@@ -301,6 +325,89 @@ export default function Home() {
               <ArrowRight className="w-5 h-5" />
             </Link>
           </motion.div>
+        </div>
+      </section>
+
+      {/* Traditional vs ZkCircles comparison — inspired by NullPay */}
+      <section className="py-20 md:py-28 bg-midnight-950 relative overflow-hidden">
+        <div className="absolute inset-0 opacity-5">
+          <div className="absolute top-10 left-10 w-40 h-40 border border-amber-400 rounded-full" />
+          <div className="absolute bottom-10 right-10 w-60 h-60 border border-forest-400 rounded-full" />
+        </div>
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-12"
+          >
+            <h2 className="font-display text-3xl md:text-4xl font-bold text-cream-50 mb-3">
+              Privacy is{' '}
+              <span className="text-amber-400">Not Optional</span>
+            </h2>
+            <p className="text-cream-400 text-lg">See how ZkCircles compares to traditional rotating savings.</p>
+          </motion.div>
+
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* Traditional */}
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              className="rounded-2xl border border-white/10 bg-white/5 p-8"
+            >
+              <h3 className="font-display text-lg font-semibold text-cream-300 mb-6 flex items-center gap-2">
+                <XCircle className="w-5 h-5 text-red-400" />
+                Traditional Savings Groups
+              </h3>
+              <ul className="space-y-3">
+                {[
+                  'All transactions visible to members',
+                  'Identity and amounts exposed',
+                  'Trust-based — no enforcement',
+                  'Defaulters can disappear',
+                  'No credit history proof',
+                  'Single-point-of-failure organizer',
+                ].map((item) => (
+                  <li key={item} className="flex items-start gap-3 text-sm text-cream-400">
+                    <XCircle className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </motion.div>
+
+            {/* ZkCircles */}
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-8 relative"
+            >
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-amber-500 rounded-full text-xs font-bold text-midnight-900 tracking-wider">
+                ZKCIRCLES PROTOCOL
+              </div>
+              <h3 className="font-display text-lg font-semibold text-amber-400 mb-6 flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-amber-400" />
+                ZkCircles on Aleo
+              </h3>
+              <ul className="space-y-3">
+                {[
+                  'Contributions verified privately via ZK proofs',
+                  'Member identities hashed — never stored',
+                  'Smart contract enforces every payout',
+                  'Defaults flagged on-chain automatically',
+                  'Prove your history to lenders privately',
+                  'Fully decentralised — no organizer risk',
+                ].map((item) => (
+                  <li key={item} className="flex items-start gap-3 text-sm text-cream-200">
+                    <CheckCircle2 className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </motion.div>
+          </div>
         </div>
       </section>
 
