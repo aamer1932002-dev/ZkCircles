@@ -106,14 +106,15 @@ export function useZkEmailVerification() {
         email: normalizedEmail,
       })
 
-      setStatus(prev => ({ ...prev, registered: true, status: 1 }))
-      setStep('sending_code')
-
-      // Automatically send the verification code
+      // Fetch the code BEFORE switching step — so testCode is in state when the UI renders
       const codeResult = await sendEmailVerificationCode(address)
       if (codeResult.testCode) {
         setTestCode(codeResult.testCode)
       }
+
+      // NOW switch step — testCode is already set, UI will show it immediately
+      setStatus(prev => ({ ...prev, registered: true, status: 1 }))
+      setStep('sending_code')
 
       setIsProcessing(false)
       setTransactionStatus(null)

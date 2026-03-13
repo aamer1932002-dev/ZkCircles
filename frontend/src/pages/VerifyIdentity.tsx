@@ -216,7 +216,7 @@ export default function VerifyIdentity() {
                       disabled={isProcessing}
                       className="text-xs text-blue-700 font-semibold hover:text-blue-900 underline flex items-center gap-1"
                     >
-                      <RefreshCw className="w-3 h-3" /> Resend / Show Code
+                      {isProcessing ? <><Loader2 className="w-3 h-3 animate-spin" /> Sending...</> : <><RefreshCw className="w-3 h-3" /> Resend / Show Code</>}
                     </button>
                   </div>
                 )}
