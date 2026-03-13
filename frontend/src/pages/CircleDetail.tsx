@@ -64,8 +64,8 @@ export default function CircleDetail() {
   const { flagMissedContribution, isFlagging } = useDisputeResolution()
   const { joinCircle, isJoining, transactionStatus: joinStatus } = useJoinCircle()
   const { notifyPayoutTurn, notifyContributionDue, notifyCircleFull, isCircleEnabled } = useNotifications()
-  const { generateInvite, copyInviteLink, isProcessing: isGeneratingInvite } = useInviteLinks()
-  const { enableAutoContribution, disableAutoContribution, isScheduled, getSchedule, isProcessing: isTogglingSchedule } = useAutoContribution()
+  const { generateInvite, copyInviteLink, isCreating: isGeneratingInvite } = useInviteLinks()
+  const { enableAutoContribution, disableAutoContribution, isScheduled, isLoading: isTogglingSchedule } = useAutoContribution()
   const notifiedRef = useRef<Set<string>>(new Set())
 
   const [copied, setCopied] = useState(false)
@@ -768,7 +768,7 @@ export default function CircleDetail() {
                           if (result.success) {
                             toast.success('Auto-contribution enabled! You\'ll be reminded before each cycle.')
                           } else {
-                            toast.error(result.error || 'Failed to enable')
+                            toast.error('Failed to enable auto-contribution')
                           }
                         }
                       }}
