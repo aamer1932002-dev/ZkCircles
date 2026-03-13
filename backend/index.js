@@ -1668,20 +1668,31 @@ app.post('/api/email/send-code', async (req, res) => {
       const html = `<div style="font-family:sans-serif;max-width:480px;margin:auto;padding:24px;border:1px solid #f3e8d4;border-radius:16px"><h2 style="color:#92400e">ZkCircles Verification</h2><p style="color:#44403c">Your verification code is:</p><div style="font-family:monospace;font-size:32px;font-weight:bold;letter-spacing:10px;color:#2c241f;background:#fef3c7;padding:16px;border-radius:8px;text-align:center">${code}</div><p style="color:#78716c;font-size:14px">This code expires in 30 minutes.</p></div>`
 
       // Option 1: Resend (HTTP API — no SMTP needed, free tier)
+      let resendErrorDetail = null
       if (!emailSent && process.env.RESEND_API_KEY) {
         try {
           const { Resend } = require('resend')
           const resend = new Resend(process.env.RESEND_API_KEY)
-          await resend.emails.send({
-            from: process.env.RESEND_FROM || 'ZkCircles <noreply@zkcircles.app>',
+          const fromAddress = process.env.RESEND_FROM || 'onboarding@resend.dev'
+          console.log(`[Resend] Sending to: ${recipientEmail} from: ${fromAddress}`)
+          const result = await resend.emails.send({
+            from: fromAddress,
             to: recipientEmail,
             subject,
             text,
             html,
           })
-          emailSent = true
+          if (result.error) {
+            // Resend SDK returns errors in result.error rather than throwing
+            resendErrorDetail = result.error
+            console.error('[Resend] API error:', JSON.stringify(result.error))
+          } else {
+            console.log('[Resend] Email sent OK, id:', result.data?.id)
+            emailSent = true
+          }
         } catch (e) {
-          console.warn('Resend delivery failed:', e.message)
+          resendErrorDetail = e.message
+          console.error('[Resend] Delivery exception:', e.message, e)
         }
       }
 
@@ -1713,6 +1724,7 @@ app.post('/api/email/send-code', async (req, res) => {
     const response = { success: true, codeSent: true }
     if (!emailSent) {
       response.testCode = code
+      if (resendErrorDetail) response.emailError = resendErrorDetail
     }
     res.json(response)
   } catch (error) {

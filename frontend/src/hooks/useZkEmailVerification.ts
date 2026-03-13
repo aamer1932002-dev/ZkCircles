@@ -111,6 +111,9 @@ export function useZkEmailVerification() {
       if (codeResult.testCode) {
         setTestCode(codeResult.testCode)
       }
+      if ((codeResult as any).emailError) {
+        console.error('[zkEmail] Email delivery failed:', (codeResult as any).emailError)
+      }
 
       // NOW switch step — testCode is already set, UI will show it immediately
       setStatus(prev => ({ ...prev, registered: true, status: 1 }))
@@ -194,6 +197,9 @@ export function useZkEmailVerification() {
     setIsProcessing(true)
     const result = await sendEmailVerificationCode(address)
     if (result.testCode) setTestCode(result.testCode)
+    if ((result as any).emailError) {
+      console.error('[zkEmail] Resend error on resend:', (result as any).emailError)
+    }
     setIsProcessing(false)
     return result
   }, [address])

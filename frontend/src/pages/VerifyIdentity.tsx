@@ -195,8 +195,10 @@ export default function VerifyIdentity() {
                 {testCode ? (
                   <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4">
                     <p className="text-amber-800 text-sm">
-                      <strong>Testnet:</strong> Email delivery is not configured yet. Use this code: <code className="bg-amber-100 px-2 py-1 rounded font-mono text-lg font-bold">{testCode}</code>
+                      <strong>Email delivery unavailable</strong> — your code is shown here:
+                      {' '}<code className="bg-amber-100 px-2 py-1 rounded font-mono text-lg font-bold">{testCode}</code>
                     </p>
+                    <p className="text-amber-700 text-xs mt-1">To enable real email delivery, verify a domain at resend.com and set <code>RESEND_FROM</code> in Render.</p>
                     <button
                       type="button"
                       onClick={() => { setCode(testCode); }}
@@ -206,17 +208,17 @@ export default function VerifyIdentity() {
                     </button>
                   </div>
                 ) : (
-                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4">
-                    <p className="text-blue-800 text-sm mb-2">
-                      Check your email inbox, or click below to resend and reveal the code.
+                  <div className="bg-green-50 border border-green-200 rounded-xl p-3 mb-4">
+                    <p className="text-green-800 text-sm mb-2">
+                      ✅ Verification code sent to your email. Check your inbox (and spam folder).
                     </p>
                     <button
                       type="button"
                       onClick={() => resendCode()}
                       disabled={isProcessing}
-                      className="text-xs text-blue-700 font-semibold hover:text-blue-900 underline flex items-center gap-1"
+                      className="text-xs text-green-700 font-semibold hover:text-green-900 underline flex items-center gap-1"
                     >
-                      {isProcessing ? <><Loader2 className="w-3 h-3 animate-spin" /> Sending...</> : <><RefreshCw className="w-3 h-3" /> Resend / Show Code</>}
+                      {isProcessing ? <><Loader2 className="w-3 h-3 animate-spin" /> Sending...</> : <><RefreshCw className="w-3 h-3" /> Resend code</>}
                     </button>
                   </div>
                 )}
