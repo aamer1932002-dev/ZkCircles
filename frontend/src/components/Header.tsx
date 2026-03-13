@@ -51,13 +51,17 @@ export default function Header() {
         <div className="flex items-center justify-between h-16 md:h-20">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-3 group">
-            <div className="relative w-10 h-10 md:w-12 md:h-12">
+            <motion.div
+              className="relative w-14 h-14 md:w-16 md:h-16"
+              whileHover={{ rotate: 360, scale: 1.1 }}
+              transition={{ type: 'spring', stiffness: 200, damping: 12 }}
+            >
               <img 
                 src="/logo.png" 
                 alt="ZkCircles Logo" 
-                className="w-full h-full object-contain"
+                className="w-full h-full object-contain drop-shadow-md"
               />
-            </div>
+            </motion.div>
             <div className="hidden sm:block">
               <span className="font-display text-xl md:text-2xl font-semibold text-midnight-900">
                 Zk<span className="text-amber-600">Circles</span>

@@ -199,6 +199,33 @@
       transform: translateY(0);
     }
   }
+
+  /* ── Animated background keyframes ─────────────────────────────────── */
+
+  /* Slow clockwise orbit (translate + rotate) */
+  @keyframes orbit {
+    0%   { transform: rotate(0deg)   translateX(18px) rotate(0deg); }
+    100% { transform: rotate(360deg) translateX(18px) rotate(-360deg); }
+  }
+
+  /* Counter-clockwise orbit */
+  @keyframes orbitReverse {
+    0%   { transform: rotate(0deg)   translateX(14px) rotate(0deg); }
+    100% { transform: rotate(-360deg) translateX(14px) rotate(360deg); }
+  }
+
+  /* Gentle floating up-down */
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-18px); }
+  }
+
+  /* Soft pulsing glow */
+  @keyframes pulseSoft {
+    0%, 100% { opacity: 0.35; transform: scale(1); }
+    50%      { opacity: 0.55; transform: scale(1.08); }
+  }
+}
   
   /* Stagger children animation */
   .stagger-children > * {
