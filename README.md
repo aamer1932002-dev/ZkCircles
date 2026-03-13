@@ -201,6 +201,21 @@ npm run dev
 
 ---
 
+## Next Wave Roadmap
+
+> Small, shippable improvements that build directly on what already works.
+
+| # | Feature | Why |
+|---|---|---|
+| 1 | **QR code for invite links** | Circle invite links are already working — adding a QR code makes sharing in person instant |
+| 2 | **Email notifications** | Browser push is live; adding email as a fallback ensures members never miss their payout turn |
+| 3 | **Explorer search & filters** | Filter circles by token type, status, or contribution amount so users find the right circle faster |
+| 4 | **Circle templates** | Let creators pick from preset configurations (e.g. 5-member / 10 cycles / 10 ALEO) to reduce setup friction |
+| 5 | **Contribution history export** | One-click CSV download of your full contribution and payout history from the Analytics page |
+| 6 | **Member profile page** | A per-address page showing circles joined, total contributed, payouts received, and verification status |
+
+---
+
 ## Resources
 
 - [Aleo Developer Docs](https://developer.aleo.org/)
