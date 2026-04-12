@@ -1,22 +1,11 @@
 import { useEffect, useRef } from 'react'
 
-/**
- * Animated canvas background – rotating rings, floating orbs, and
- * connecting arcs that echo the "savings circles" / ROSCA theme.
- *
- * All colours are drawn from the ZkCircles palette:
- *   amber (#FBBF24), terra (#EB7D68), forest (#22C55E), cream (#F9F3E7)
- *
- * Runs at ≤30 fps to stay battery-friendly and uses devicePixelRatio
- * for crisp rendering on retina screens.
- */
 export default function AnimatedBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
@@ -25,7 +14,6 @@ export default function AnimatedBackground() {
     let h = window.innerHeight
     const dpr = Math.min(window.devicePixelRatio || 1, 2)
 
-    // ── resize handler ───────────────────────────────────────────────
     function resize() {
       w = window.innerWidth
       h = window.innerHeight
@@ -38,203 +26,230 @@ export default function AnimatedBackground() {
     resize()
     window.addEventListener('resize', resize)
 
-    // ── config ───────────────────────────────────────────────────────
-    const palette = [
-      'rgba(251,191,36,',   // amber-400
-      'rgba(235,125,104,',  // terra-400
-      'rgba(34,197,94,',    // forest-500
-      'rgba(217,119,6,',    // amber-600
-      'rgba(196,64,43,',    // terra-600
+    // ── Concentric ring sets (ROSCA circles) ─────────────────────────
+    const ringSets = [
+      { cx: 0.78, cy: 0.2, rings: [80, 130, 180], speed: 0.06, angle: 0, color: [251, 191, 36] },
+      { cx: 0.18, cy: 0.7, rings: [60, 110, 160], speed: -0.045, angle: 1.5, color: [235, 125, 104] },
+      { cx: 0.5, cy: 0.5, rings: [120, 200, 300], speed: 0.025, angle: 0.8, color: [34, 197, 94] },
+      { cx: 0.85, cy: 0.75, rings: [50, 90], speed: -0.08, angle: 2, color: [217, 119, 6] },
     ]
 
-    // ── Orbiting rings ───────────────────────────────────────────────
-    interface Ring {
-      cx: number        // centre X factor (0-1)
-      cy: number        // centre Y factor (0-1)
-      r: number         // radius
-      speed: number     // rad/s
-      angle: number
-      color: string
-      opacity: number
-      dash: number[]
-      width: number
-    }
-
-    const rings: Ring[] = [
-      { cx: 0.82, cy: 0.18, r: 160, speed: 0.08, angle: 0, color: palette[0], opacity: 0.18, dash: [], width: 1.2 },
-      { cx: 0.15, cy: 0.75, r: 200, speed: -0.06, angle: 1, color: palette[1], opacity: 0.14, dash: [6, 8], width: 1 },
-      { cx: 0.55, cy: 0.45, r: 280, speed: 0.04, angle: 2, color: palette[2], opacity: 0.10, dash: [], width: 0.8 },
-      { cx: 0.75, cy: 0.70, r: 120, speed: -0.10, angle: 0.5, color: palette[3], opacity: 0.15, dash: [4, 12], width: 1 },
-      { cx: 0.30, cy: 0.25, r: 100, speed: 0.12, angle: 3, color: palette[0], opacity: 0.12, dash: [], width: 0.8 },
+    // ── Floating particles ───────────────────────────────────────────
+    const colors = [
+      [251, 191, 36],  // amber
+      [235, 125, 104], // terra
+      [34, 197, 94],   // forest
+      [217, 119, 6],   // dark amber
     ]
 
-    // ── Floating orbs ────────────────────────────────────────────────
-    interface Orb {
-      x: number
-      y: number
-      r: number
-      vx: number
-      vy: number
-      color: string
-      baseOpacity: number
-      phase: number
+    interface Particle {
+      x: number; y: number; r: number
+      vx: number; vy: number
+      color: number[]; phase: number
     }
 
-    const orbCount = Math.min(Math.floor(w / 120), 8)
-    const orbs: Orb[] = Array.from({ length: orbCount }, () => ({
+    const particleCount = Math.max(12, Math.min(Math.floor(w * h / 60000), 25))
+    const particles: Particle[] = Array.from({ length: particleCount }, () => ({
       x: Math.random() * w,
       y: Math.random() * h,
-      r: 2 + Math.random() * 3,
-      vx: (Math.random() - 0.5) * 0.3,
-      vy: (Math.random() - 0.5) * 0.25,
-      color: palette[Math.floor(Math.random() * palette.length)],
-      baseOpacity: 0.25 + Math.random() * 0.25,
+      r: 2.5 + Math.random() * 4,
+      vx: (Math.random() - 0.5) * 0.4,
+      vy: (Math.random() - 0.5) * 0.35,
+      color: colors[Math.floor(Math.random() * colors.length)],
       phase: Math.random() * Math.PI * 2,
     }))
 
-    // ── Connection arcs between nearby orbs ───────────────────────────
-    const connectionDist = 220
-
-    // ── Rotating polygon nodes (represent "members in a circle") ─────
-    interface CircleGroup {
-      cx: number
-      cy: number
-      r: number
-      nodes: number
-      speed: number
-      angle: number
-      color: string
-      opacity: number
-    }
-
-    const circleGroups: CircleGroup[] = [
-      { cx: 0.72, cy: 0.32, r: 50, nodes: 5, speed: 0.15, angle: 0, color: palette[0], opacity: 0.22 },
-      { cx: 0.22, cy: 0.58, r: 40, nodes: 4, speed: -0.18, angle: 1, color: palette[2], opacity: 0.18 },
-      { cx: 0.50, cy: 0.82, r: 35, nodes: 3, speed: 0.20, angle: 2, color: palette[1], opacity: 0.16 },
+    // ── Rotating member-node groups ──────────────────────────────────
+    const memberGroups = [
+      { cx: 0.7, cy: 0.35, r: 65, nodes: 5, speed: 0.12, angle: 0, color: [251, 191, 36] },
+      { cx: 0.25, cy: 0.55, r: 50, nodes: 4, speed: -0.15, angle: 1, color: [34, 197, 94] },
+      { cx: 0.55, cy: 0.85, r: 45, nodes: 3, speed: 0.18, angle: 2, color: [235, 125, 104] },
+      { cx: 0.12, cy: 0.2, r: 35, nodes: 6, speed: -0.1, angle: 3, color: [217, 119, 6] },
     ]
 
-    // ── Render loop (throttled ~30fps) ───────────────────────────────
+    // ── Large ambient glows ──────────────────────────────────────────
+    const glows = [
+      { cx: 0.15, cy: 0.15, r: 350, color: [251, 191, 36], alpha: 0.06, phase: 0 },
+      { cx: 0.85, cy: 0.8, r: 400, color: [34, 197, 94], alpha: 0.05, phase: 1.5 },
+      { cx: 0.5, cy: 0.5, r: 500, color: [235, 125, 104], alpha: 0.04, phase: 3 },
+    ]
+
+    const connectionDist = 250
+
     let lastFrame = 0
     const interval = 1000 / 30
 
+    function rgba(c: number[], a: number) {
+      return `rgba(${c[0]},${c[1]},${c[2]},${a})`
+    }
+
     function draw(now: number) {
       animId = requestAnimationFrame(draw)
-
       const delta = now - lastFrame
       if (delta < interval) return
       lastFrame = now - (delta % interval)
-
-      const dt = delta / 1000 // seconds
+      const dt = delta / 1000
+      const t = now / 1000
 
       ctx!.clearRect(0, 0, w, h)
 
-      // — Draw rings ——————————————————————————————————
-      for (const ring of rings) {
-        ring.angle += ring.speed * dt
-        const cx = ring.cx * w
-        const cy = ring.cy * h
+      // ── Ambient glows (pulsing) ────────────────────────────────────
+      for (const g of glows) {
+        const pulse = g.alpha + Math.sin(t * 0.5 + g.phase) * 0.015
+        const grad = ctx!.createRadialGradient(
+          g.cx * w, g.cy * h, 0,
+          g.cx * w, g.cy * h, g.r
+        )
+        grad.addColorStop(0, rgba(g.color, pulse))
+        grad.addColorStop(0.5, rgba(g.color, pulse * 0.4))
+        grad.addColorStop(1, rgba(g.color, 0))
+        ctx!.fillStyle = grad
+        ctx!.fillRect(0, 0, w, h)
+      }
+
+      // ── Concentric ring sets ───────────────────────────────────────
+      for (const rs of ringSets) {
+        rs.angle += rs.speed * dt
+        const cx = rs.cx * w
+        const cy = rs.cy * h
 
         ctx!.save()
         ctx!.translate(cx, cy)
-        ctx!.rotate(ring.angle)
-        ctx!.beginPath()
-        ctx!.arc(0, 0, ring.r, 0, Math.PI * 2)
-        ctx!.strokeStyle = ring.color + ring.opacity + ')'
-        ctx!.lineWidth = ring.width
-        if (ring.dash.length) ctx!.setLineDash(ring.dash)
-        ctx!.stroke()
+        ctx!.rotate(rs.angle)
+
+        for (let i = 0; i < rs.rings.length; i++) {
+          const r = rs.rings[i]
+          const alpha = 0.25 - i * 0.06
+
+          // Dashed rings for inner, solid for outer
+          ctx!.beginPath()
+          ctx!.arc(0, 0, r, 0, Math.PI * 2)
+          ctx!.strokeStyle = rgba(rs.color, alpha)
+          ctx!.lineWidth = i === 0 ? 1.8 : 1.2
+          ctx!.setLineDash(i % 2 === 1 ? [8, 6] : [])
+          ctx!.stroke()
+        }
+
         ctx!.restore()
       }
 
-      // — Draw circle-groups (rotating member nodes) ——————————
-      for (const cg of circleGroups) {
-        cg.angle += cg.speed * dt
-        const cx = cg.cx * w
-        const cy = cg.cy * h
+      // ── Member-node groups (rotating polygon) ──────────────────────
+      ctx!.setLineDash([])
+      for (const mg of memberGroups) {
+        mg.angle += mg.speed * dt
+        const cx = mg.cx * w
+        const cy = mg.cy * h
 
-        // Draw faint outer ring
+        // Outer ring
         ctx!.beginPath()
-        ctx!.arc(cx, cy, cg.r, 0, Math.PI * 2)
-        ctx!.strokeStyle = cg.color + (cg.opacity * 0.5) + ')'
-        ctx!.lineWidth = 0.6
+        ctx!.arc(cx, cy, mg.r, 0, Math.PI * 2)
+        ctx!.strokeStyle = rgba(mg.color, 0.2)
+        ctx!.lineWidth = 1
         ctx!.stroke()
 
-        // Draw nodes and connecting lines
-        const nodePositions: Array<[number, number]> = []
-        for (let i = 0; i < cg.nodes; i++) {
-          const a = cg.angle + (Math.PI * 2 * i) / cg.nodes
-          const nx = cx + Math.cos(a) * cg.r
-          const ny = cy + Math.sin(a) * cg.r
-          nodePositions.push([nx, ny])
+        // Inner dashed ring
+        ctx!.beginPath()
+        ctx!.arc(cx, cy, mg.r * 0.6, 0, Math.PI * 2)
+        ctx!.strokeStyle = rgba(mg.color, 0.12)
+        ctx!.lineWidth = 0.8
+        ctx!.setLineDash([4, 4])
+        ctx!.stroke()
+        ctx!.setLineDash([])
+
+        const nodePos: [number, number][] = []
+        for (let i = 0; i < mg.nodes; i++) {
+          const a = mg.angle + (Math.PI * 2 * i) / mg.nodes
+          const nx = cx + Math.cos(a) * mg.r
+          const ny = cy + Math.sin(a) * mg.r
+          nodePos.push([nx, ny])
+
+          // Node glow
+          const grd = ctx!.createRadialGradient(nx, ny, 0, nx, ny, 10)
+          grd.addColorStop(0, rgba(mg.color, 0.45))
+          grd.addColorStop(1, rgba(mg.color, 0))
+          ctx!.fillStyle = grd
+          ctx!.beginPath()
+          ctx!.arc(nx, ny, 10, 0, Math.PI * 2)
+          ctx!.fill()
 
           // Node dot
           ctx!.beginPath()
-          ctx!.arc(nx, ny, 3, 0, Math.PI * 2)
-          ctx!.fillStyle = cg.color + cg.opacity + ')'
+          ctx!.arc(nx, ny, 3.5, 0, Math.PI * 2)
+          ctx!.fillStyle = rgba(mg.color, 0.6)
           ctx!.fill()
         }
 
-        // Connect adjacent nodes
+        // Connect nodes with lines
         ctx!.beginPath()
-        for (let i = 0; i < nodePositions.length; i++) {
-          const [x1, y1] = nodePositions[i]
-          const [x2, y2] = nodePositions[(i + 1) % nodePositions.length]
+        for (let i = 0; i < nodePos.length; i++) {
+          const [x1, y1] = nodePos[i]
+          const [x2, y2] = nodePos[(i + 1) % nodePos.length]
           ctx!.moveTo(x1, y1)
           ctx!.lineTo(x2, y2)
         }
-        ctx!.strokeStyle = cg.color + (cg.opacity * 0.6) + ')'
-        ctx!.lineWidth = 0.5
-        ctx!.setLineDash([])
+        ctx!.strokeStyle = rgba(mg.color, 0.2)
+        ctx!.lineWidth = 0.8
         ctx!.stroke()
+
+        // Cross connections (every other node) for star pattern
+        if (mg.nodes >= 5) {
+          ctx!.beginPath()
+          for (let i = 0; i < nodePos.length; i++) {
+            const [x1, y1] = nodePos[i]
+            const [x2, y2] = nodePos[(i + 2) % nodePos.length]
+            ctx!.moveTo(x1, y1)
+            ctx!.lineTo(x2, y2)
+          }
+          ctx!.strokeStyle = rgba(mg.color, 0.08)
+          ctx!.lineWidth = 0.5
+          ctx!.stroke()
+        }
       }
 
-      // — Update & draw orbs ——————————————————————————
-      for (const orb of orbs) {
-        orb.x += orb.vx
-        orb.y += orb.vy
-        orb.phase += 0.01
+      // ── Particles ──────────────────────────────────────────────────
+      for (const p of particles) {
+        p.x += p.vx
+        p.y += p.vy
+        p.phase += 0.015
 
-        // Wrap around edges
-        if (orb.x < -10) orb.x = w + 10
-        if (orb.x > w + 10) orb.x = -10
-        if (orb.y < -10) orb.y = h + 10
-        if (orb.y > h + 10) orb.y = -10
+        if (p.x < -20) p.x = w + 20
+        if (p.x > w + 20) p.x = -20
+        if (p.y < -20) p.y = h + 20
+        if (p.y > h + 20) p.y = -20
 
-        const pulseOpacity = orb.baseOpacity + Math.sin(orb.phase) * 0.1
+        const pulse = 0.4 + Math.sin(p.phase) * 0.15
 
-        // Glow
-        const gradient = ctx!.createRadialGradient(orb.x, orb.y, 0, orb.x, orb.y, orb.r * 4)
-        gradient.addColorStop(0, orb.color + pulseOpacity + ')')
-        gradient.addColorStop(1, orb.color + '0)')
+        // Outer glow
+        const grd = ctx!.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * 6)
+        grd.addColorStop(0, rgba(p.color, pulse * 0.5))
+        grd.addColorStop(1, rgba(p.color, 0))
         ctx!.beginPath()
-        ctx!.arc(orb.x, orb.y, orb.r * 4, 0, Math.PI * 2)
-        ctx!.fillStyle = gradient
+        ctx!.arc(p.x, p.y, p.r * 6, 0, Math.PI * 2)
+        ctx!.fillStyle = grd
         ctx!.fill()
 
-        // Core dot
+        // Core
         ctx!.beginPath()
-        ctx!.arc(orb.x, orb.y, orb.r, 0, Math.PI * 2)
-        ctx!.fillStyle = orb.color + (pulseOpacity + 0.1) + ')'
+        ctx!.arc(p.x, p.y, p.r, 0, Math.PI * 2)
+        ctx!.fillStyle = rgba(p.color, pulse)
         ctx!.fill()
       }
 
-      // — Draw connection arcs between close orbs ———————————
-      ctx!.setLineDash([])
-      for (let i = 0; i < orbs.length; i++) {
-        for (let j = i + 1; j < orbs.length; j++) {
-          const dx = orbs[i].x - orbs[j].x
-          const dy = orbs[i].y - orbs[j].y
+      // ── Connection arcs between nearby particles ───────────────────
+      for (let i = 0; i < particles.length; i++) {
+        for (let j = i + 1; j < particles.length; j++) {
+          const dx = particles[i].x - particles[j].x
+          const dy = particles[i].y - particles[j].y
           const dist = Math.sqrt(dx * dx + dy * dy)
           if (dist < connectionDist) {
-            const alpha = (1 - dist / connectionDist) * 0.12
+            const alpha = (1 - dist / connectionDist) * 0.2
             ctx!.beginPath()
-            ctx!.moveTo(orbs[i].x, orbs[i].y)
-            // Slight curve for organic feel
-            const midX = (orbs[i].x + orbs[j].x) / 2 + (dy * 0.15)
-            const midY = (orbs[i].y + orbs[j].y) / 2 - (dx * 0.15)
-            ctx!.quadraticCurveTo(midX, midY, orbs[j].x, orbs[j].y)
-            ctx!.strokeStyle = `rgba(251,191,36,${alpha})`
-            ctx!.lineWidth = 0.6
+            ctx!.moveTo(particles[i].x, particles[i].y)
+            const midX = (particles[i].x + particles[j].x) / 2 + dy * 0.12
+            const midY = (particles[i].y + particles[j].y) / 2 - dx * 0.12
+            ctx!.quadraticCurveTo(midX, midY, particles[j].x, particles[j].y)
+            ctx!.strokeStyle = rgba(particles[i].color, alpha)
+            ctx!.lineWidth = 0.8
             ctx!.stroke()
           }
         }
@@ -254,7 +269,6 @@ export default function AnimatedBackground() {
       ref={canvasRef}
       className="fixed inset-0 z-[0] pointer-events-none"
       aria-hidden="true"
-      style={{ opacity: 0.85 }}
     />
   )
 }
