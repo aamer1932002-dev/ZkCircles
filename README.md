@@ -57,7 +57,7 @@ Privacy matters because financial need is personal. On ZkCircles, member keys ar
 
 ## Smart Contract
 
-**Program:** `zk_circles_v11.aleo`  
+**Program:** `zk_circles_v13.aleo`  
 **Network:** Aleo Testnet  
 **v6 Deployment TX:** `at1z5rendz2gtpeq7u2ldsnmy8mrcvlxasn373n9j5j54v8t32lxcrsq7u7wh`
 
@@ -124,7 +124,7 @@ Privacy matters because financial need is personal. On ZkCircles, member keys ar
 | Wallet | Shield Wallet (primary) and Leo Wallet via `@provablehq/aleo-wallet-adaptor-react` |
 | Backend | Express.js + Supabase (PostgreSQL), deployed on Render |
 | Encryption | AES-256-GCM for all off-chain sensitive data |
-| Chain | Aleo Testnet — `zk_circles_v11.aleo` + `credits.aleo` |
+| Chain | Aleo Testnet — `zk_circles_v13.aleo` + `credits.aleo` |
 
 ---
 

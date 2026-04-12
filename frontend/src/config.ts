@@ -15,8 +15,9 @@
 //          dispute flagging extended to completed circles
 // v11 adds: on-chain dispute resolution (create/vote/resolve), zkEmail identity,
 //          invite links, multi-cycle dashboard, auto-contribution scheduling
+// v13 port: Leo 4.0 syntax (fn/Final/final{}/::), same on-chain logic as v11
 export const PROGRAM_ID =
-  (import.meta.env.VITE_PROGRAM_ID as string) || 'zk_circles_v11.aleo'
+  (import.meta.env.VITE_PROGRAM_ID as string) || 'zk_circles_v13.aleo'
 
 // ── Backend API ──────────────────────────────────────────────────────────────
 export const BACKEND_URL =
@@ -53,7 +54,7 @@ export const DISPUTE_STATUSES = {
 // token_id = 0field means Aleo native credits.
 // 1field = test_usdcx_stablecoin.aleo (USDCx on testnet)
 // 2field = test_usad_stablecoin.aleo  (USAD on testnet)
-// These are internal identifiers used inside zk_circles_v11.aleo to route
+// These are internal identifiers used inside zk_circles_v13.aleo to route
 // to the correct stablecoin transition — NOT token_registry token IDs.
 export const TOKEN_ID_ALEO  = '0field'
 export const TOKEN_ID_USDCX = '1field'
