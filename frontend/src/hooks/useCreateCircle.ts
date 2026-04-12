@@ -16,6 +16,7 @@ interface CreateCircleParams {
   maxMembers: number
   totalCycles: number
   tokenId?: string   // 0field = Aleo credits (default); non-zero = ARC-20 token_id
+  minReputation?: number // 0-100, minimum credit score to join (default: 0 = no gate)
 }
 
 interface CreateCircleResult {
@@ -52,14 +53,16 @@ export function useCreateCircle() {
       const salt = generateSalt()
       const circleId = await hashToField(`${address}:${params.name}:${salt}`)
 
-      // Inputs: create_circle(circle_id, contribution_amount, max_members, total_cycles, token_id)
+      // Inputs: create_circle(circle_id, contribution_amount, max_members, total_cycles, token_id, min_reputation)
       const tokenId = params.tokenId ?? '0field'
+      const minRep = params.minReputation ?? 0
       const inputs = [
         circleId,                                   // circle_id: field
         `${params.contributionAmount}u64`,          // contribution_amount: u64
         `${params.maxMembers}u8`,                   // max_members: u8
         `${params.totalCycles}u8`,                  // total_cycles: u8
         tokenId,                                    // token_id: field (0field = Aleo credits)
+        `${minRep}u8`,                              // min_reputation: u8 (0 = no gate)
       ]
 
       setTransactionStatus('Awaiting wallet approval...')

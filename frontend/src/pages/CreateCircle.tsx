@@ -10,7 +10,8 @@ import {
   Coins, 
   Info,
   Loader2,
-  CheckCircle2
+  CheckCircle2,
+  Shield
 } from 'lucide-react'
 import { useCreateCircle } from '../hooks/useCreateCircle'
 import { TOKENS, getTokenConfig, TOKEN_ID_ALEO } from '../config'
@@ -27,6 +28,7 @@ export default function CreateCircle() {
     maxMembers: '6',
     cycleDuration: '7', // days
     tokenId: TOKEN_ID_ALEO,
+    minReputation: '0',
   })
 
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -90,6 +92,7 @@ export default function CreateCircle() {
         maxMembers: parseInt(formData.maxMembers),
         totalCycles: parseInt(formData.maxMembers), // one cycle per member
         tokenId: formData.tokenId,
+        minReputation: parseInt(formData.minReputation) || 0,
       })
 
       if (result.success) {
@@ -290,6 +293,35 @@ export default function CreateCircle() {
                 </div>
                 <p className="mt-1 text-sm text-midnight-500">
                   Time between each contribution round
+                </p>
+              </div>
+
+              {/* Minimum Reputation (Reputation Gate) */}
+              <div>
+                <label htmlFor="minReputation" className="input-label">
+                  Minimum Credit Score to Join
+                </label>
+                <div className="relative">
+                  <Shield className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-midnight-400" />
+                  <select
+                    id="minReputation"
+                    name="minReputation"
+                    value={formData.minReputation}
+                    onChange={handleInputChange}
+                    className="input pl-12 appearance-none cursor-pointer"
+                    disabled={isCreating}
+                  >
+                    <option value="0">No requirement (open to all)</option>
+                    <option value="20">20+ (Newcomer)</option>
+                    <option value="40">40+ (D Grade — can borrow)</option>
+                    <option value="55">55+ (C Grade)</option>
+                    <option value="70">70+ (B Grade)</option>
+                    <option value="85">85+ (A Grade)</option>
+                    <option value="95">95+ (A+ Grade — elite only)</option>
+                  </select>
+                </div>
+                <p className="mt-1 text-sm text-midnight-500">
+                  Members must have this on-chain credit score to join. 0 = open circle.
                 </p>
               </div>
 

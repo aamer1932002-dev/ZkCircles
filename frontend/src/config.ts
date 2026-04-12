@@ -17,8 +17,9 @@
 //          invite links, multi-cycle dashboard, auto-contribution scheduling
 // v13 port: Leo 4.0 syntax (fn/Final/final{}/::), same on-chain logic as v11
 // v14 fix: claim_payout returns CircleMembership so members can contribute in next cycle
+// v15 adds: on-chain credit score, reputation-gated circles, peer-to-peer micro-lending
 export const PROGRAM_ID =
-  (import.meta.env.VITE_PROGRAM_ID as string) || 'zk_circles_v14.aleo'
+  (import.meta.env.VITE_PROGRAM_ID as string) || 'zk_circles_v15.aleo'
 
 // ── Backend API ──────────────────────────────────────────────────────────────
 export const BACKEND_URL =
@@ -37,6 +38,17 @@ export const FEE_VOTE_DISPUTE   = 300_000   // 0.3 ALEO  (vote_on_dispute)
 export const FEE_RESOLVE_DISPUTE = 300_000  // 0.3 ALEO  (resolve_dispute)
 export const FEE_EMAIL_REGISTER = 300_000   // 0.3 ALEO  (register_email_commitment)
 export const FEE_EMAIL_VERIFY   = 300_000   // 0.3 ALEO  (verify_email_commitment)
+export const FEE_UPDATE_SCORE   = 300_000   // 0.3 ALEO  (update_credit_score)
+export const FEE_CLAIM_COMPLETION = 300_000 // 0.3 ALEO  (claim_circle_completion)
+export const FEE_OFFER_LOAN     = 1_000_000 // 1.0 ALEO  (offer_loan)
+export const FEE_ACCEPT_LOAN    = 1_000_000 // 1.0 ALEO  (accept_loan)
+export const FEE_REPAY_LOAN     = 1_000_000 // 1.0 ALEO  (repay_loan)
+export const FEE_CANCEL_LOAN    = 500_000   // 0.5 ALEO  (cancel_loan)
+export const FEE_DEFAULT_LOAN   = 300_000   // 0.3 ALEO  (default_loan)
+
+// ── Lending constants ────────────────────────────────────────────────────────
+export const MIN_BORROW_SCORE = 40          // Minimum credit score to borrow
+export const MAX_INTEREST_BPS = 5000        // 50% max interest (basis points)
 
 // ── Dispute reasons ──────────────────────────────────────────────────────────
 export const DISPUTE_REASONS = [
@@ -55,7 +67,7 @@ export const DISPUTE_STATUSES = {
 // token_id = 0field means Aleo native credits.
 // 1field = test_usdcx_stablecoin.aleo (USDCx on testnet)
 // 2field = test_usad_stablecoin.aleo  (USAD on testnet)
-// These are internal identifiers used inside zk_circles_v14.aleo to route
+// These are internal identifiers used inside zk_circles_v15.aleo to route
 // to the correct stablecoin transition — NOT token_registry token IDs.
 export const TOKEN_ID_ALEO  = '0field'
 export const TOKEN_ID_USDCX = '1field'

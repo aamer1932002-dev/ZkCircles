@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useWallet } from '@provablehq/aleo-wallet-adaptor-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Menu, X, Circle, Users, Compass, BookOpen, Shield, User } from 'lucide-react'
+import { Menu, X, Circle, Users, Compass, BookOpen, Shield, User, Banknote } from 'lucide-react'
 import WalletButton from './WalletButton'
 
 const navLinks = [
@@ -10,6 +10,7 @@ const navLinks = [
   { path: '/my-circles', label: 'My Circles', icon: Users },
   { path: '/profile', label: 'Profile', icon: User },
   { path: '/explorer', label: 'Explorer', icon: Compass },
+  { path: '/lending', label: 'Lending', icon: Banknote },
   { path: '/how-it-works', label: 'How It Works', icon: BookOpen },
   { path: '/privacy', label: 'Privacy', icon: Shield },
 ]

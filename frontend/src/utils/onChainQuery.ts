@@ -76,3 +76,30 @@ export async function queryProgramBalance(): Promise<number | null> {
     return null
   }
 }
+
+/**
+ * Generic mapping query — fetch a single value from any mapping in our program.
+ * Returns the raw string or null if the key doesn't exist.
+ */
+export async function queryMapping(mappingName: string, key: string): Promise<string | null> {
+  try {
+    const url = `${API_BASE}/program/${PROGRAM_ID}/mapping/${mappingName}/${key}`
+    const res = await fetch(url, { signal: AbortSignal.timeout(10_000) })
+    if (!res.ok) return null
+    const raw = await res.text()
+    if (!raw || raw === 'null' || raw === '""') return null
+    return raw.replace(/"/g, '').trim()
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Parse a numeric mapping value from the raw on-chain string.
+ * Handles suffixes like u8, u16, u32, u64.
+ */
+export function parseMappingNumber(raw: string | null): number {
+  if (!raw) return 0
+  const cleaned = raw.replace(/u\d+$/, '').trim()
+  return parseInt(cleaned, 10) || 0
+}

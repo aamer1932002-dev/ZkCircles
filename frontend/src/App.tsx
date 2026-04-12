@@ -19,6 +19,7 @@ import CycleDashboard from './pages/CycleDashboard'
 import InviteAccept from './pages/InviteAccept'
 import DisputeResolution from './pages/DisputeResolution'
 import MemberProfile from './pages/MemberProfile'
+import Lending from './pages/Lending'
 
 function App() {
   const location = useLocation()
@@ -67,6 +68,7 @@ function App() {
           <Route path="explorer" element={<Explorer />} />
           <Route path="profile" element={<MemberProfile />} />
           <Route path="profile/:address" element={<MemberProfile />} />
+          <Route path="lending" element={<Lending />} />
           <Route path="how-it-works" element={<HowItWorks />} />
           <Route path="privacy" element={<Privacy />} />
         </Route>
