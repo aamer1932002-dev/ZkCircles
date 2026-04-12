@@ -35,6 +35,7 @@ import { useVerifyMembership } from '../hooks/useVerifyMembership'
 import { useDisputeResolution } from '../hooks/useDisputeResolution'
 import { useJoinCircle } from '../hooks/useJoinCircle'
 import { useInviteLinks } from '../hooks/useInviteLinks'
+import { QRCodeSVG } from 'qrcode.react'
 import { dissolveCircle } from '../services/api'
 import NotificationBanner, { NotificationToggle } from '../components/NotificationBanner'
 import { useNotifications } from '../hooks/useNotifications'
@@ -71,6 +72,7 @@ export default function CircleDetail() {
   const [membershipVerified, setMembershipVerified] = useState<boolean | null>(null)
   const [showDissolveModal, setShowDissolveModal] = useState(false)
   const [isDissolving, setIsDissolving] = useState(false)
+  const [qrInviteLink, setQrInviteLink] = useState<string | null>(null)
 
   useEffect(() => {
     if (circleId) {
@@ -342,6 +344,7 @@ export default function CircleDetail() {
                     const result = await generateInvite(circleId)
                     if (result.success && result.code) {
                       await copyInviteLink(result.code)
+                      setQrInviteLink(result.link || `${window.location.origin}/invite/${result.code}`)
                       toast.success('Invite link copied!')
                     } else {
                       toast.error(result.error || 'Failed to generate invite')
@@ -972,6 +975,60 @@ export default function CircleDetail() {
       )}
 
       {/* Dissolve Circle Modal */}
+      {/* QR Code Invite Modal */}
+      {qrInviteLink && (
+        <div className="fixed inset-0 bg-midnight-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 text-center"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-display text-lg font-semibold text-midnight-900">Invite via QR Code</h3>
+              <button onClick={() => setQrInviteLink(null)} className="p-1 hover:bg-cream-100 rounded-lg transition-colors">
+                <X className="w-5 h-5 text-midnight-500" />
+              </button>
+            </div>
+            <div className="bg-white p-4 rounded-xl inline-block mb-4 border border-cream-200">
+              <QRCodeSVG
+                value={qrInviteLink}
+                size={200}
+                bgColor="#FFFFFF"
+                fgColor="#2C241F"
+                level="M"
+                includeMargin={false}
+              />
+            </div>
+            <p className="text-sm text-midnight-600 mb-4">
+              Scan this QR code to join the circle
+            </p>
+            <div className="flex items-center gap-2 p-2 bg-cream-50 rounded-lg mb-4">
+              <input
+                type="text"
+                readOnly
+                value={qrInviteLink}
+                className="flex-1 bg-transparent text-xs text-midnight-600 font-mono outline-none truncate"
+              />
+              <button
+                onClick={async () => {
+                  await navigator.clipboard.writeText(qrInviteLink)
+                  toast.success('Link copied!')
+                }}
+                className="p-1.5 hover:bg-cream-200 rounded-lg transition-colors"
+              >
+                <Copy className="w-4 h-4 text-midnight-500" />
+              </button>
+            </div>
+            <button
+              onClick={() => setQrInviteLink(null)}
+              className="btn-secondary w-full"
+            >
+              Done
+            </button>
+          </motion.div>
+        </div>
+      )}
+
       {showDissolveModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <motion.div

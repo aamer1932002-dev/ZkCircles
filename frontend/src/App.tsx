@@ -18,6 +18,7 @@ import Analytics from './pages/Analytics'
 import CycleDashboard from './pages/CycleDashboard'
 import InviteAccept from './pages/InviteAccept'
 import DisputeResolution from './pages/DisputeResolution'
+import MemberProfile from './pages/MemberProfile'
 
 function App() {
   const location = useLocation()
@@ -64,6 +65,8 @@ function App() {
           <Route path="invite/:code" element={<InviteAccept />} />
           <Route path="disputes/:circleId" element={<DisputeResolution />} />
           <Route path="explorer" element={<Explorer />} />
+          <Route path="profile" element={<MemberProfile />} />
+          <Route path="profile/:address" element={<MemberProfile />} />
           <Route path="how-it-works" element={<HowItWorks />} />
           <Route path="privacy" element={<Privacy />} />
         </Route>

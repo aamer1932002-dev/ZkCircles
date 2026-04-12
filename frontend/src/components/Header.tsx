@@ -2,14 +2,13 @@ import { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useWallet } from '@provablehq/aleo-wallet-adaptor-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Menu, X, Circle, Users, Compass, BookOpen, Shield, BadgeCheck } from 'lucide-react'
+import { Menu, X, Circle, Users, Compass, BookOpen, Shield, User } from 'lucide-react'
 import WalletButton from './WalletButton'
-import { checkEmailStatus } from '../services/api'
 
 const navLinks = [
   { path: '/', label: 'Home', icon: Circle },
-  { path: '/verify-identity', label: 'Verify ID', icon: BadgeCheck },
   { path: '/my-circles', label: 'My Circles', icon: Users },
+  { path: '/profile', label: 'Profile', icon: User },
   { path: '/explorer', label: 'Explorer', icon: Compass },
   { path: '/how-it-works', label: 'How It Works', icon: BookOpen },
   { path: '/privacy', label: 'Privacy', icon: Shield },
@@ -17,10 +16,9 @@ const navLinks = [
 
 export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [isVerified, setIsVerified] = useState<boolean | null>(null)
   const [scrolled, setScrolled] = useState(false)
   const location = useLocation()
-  const { connected, address } = useWallet() as any
+  const { connected } = useWallet() as any
 
   // Track scroll for header background change
   useEffect(() => {
@@ -29,29 +27,7 @@ export default function Header() {
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
-  useEffect(() => {
-    if (!connected || !address) {
-      setIsVerified(null)
-      return
-    }
-    // Check localStorage first (set after verification)
-    if (localStorage.getItem(`zk_verified_${address}`) === 'true') {
-      setIsVerified(true)
-      return
-    }
-    checkEmailStatus(address).then((s) => {
-      const v = s.verified === true
-      if (v) localStorage.setItem(`zk_verified_${address}`, 'true')
-      setIsVerified(v)
-    })
-  }, [connected, address])
 
-  // Listen for real-time verification event so banner hides immediately
-  useEffect(() => {
-    const onVerified = () => setIsVerified(true)
-    window.addEventListener('zkcircles:verified', onVerified)
-    return () => window.removeEventListener('zkcircles:verified', onVerified)
-  }, [])
 
   return (
     <header className={`sticky top-0 z-50 transition-all duration-500 ${
@@ -189,23 +165,6 @@ export default function Header() {
         )}
       </AnimatePresence>
 
-      {/* Verification banner for connected but unverified users */}
-      {connected && isVerified === false && location.pathname !== '/verify-identity' && (
-        <div className="bg-amber-50 border-b border-amber-200 px-4 py-2">
-          <div className="max-w-7xl mx-auto flex items-center justify-between">
-            <p className="text-sm text-amber-800">
-              <BadgeCheck className="w-4 h-4 inline mr-1" />
-              Verify your identity to create or join circles.
-            </p>
-            <Link
-              to="/verify-identity"
-              className="text-sm font-semibold text-amber-700 hover:text-amber-900 underline"
-            >
-              Verify Now
-            </Link>
-          </div>
-        </div>
-      )}
     </header>
   )
 }

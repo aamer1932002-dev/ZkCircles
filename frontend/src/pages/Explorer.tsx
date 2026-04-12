@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
@@ -10,7 +10,9 @@ import {
   ArrowRight,
   Loader2,
   Globe,
-  TrendingUp
+  TrendingUp,
+  SlidersHorizontal,
+  X
 } from 'lucide-react'
 import { useCircles } from '../hooks/useCircles'
 import { getTokenConfig } from '../config'
@@ -24,22 +26,76 @@ const statusFilters = [
   { value: 'completed', label: 'Completed' },
 ]
 
+const tokenFilters = [
+  { value: 'all', label: 'All Tokens' },
+  { value: '0field', label: 'ALEO' },
+  { value: '1field', label: 'USDCx' },
+  { value: '2field', label: 'USAD' },
+]
+
+const sortOptions = [
+  { value: 'newest', label: 'Newest First' },
+  { value: 'oldest', label: 'Oldest First' },
+  { value: 'amount-high', label: 'Highest Amount' },
+  { value: 'amount-low', label: 'Lowest Amount' },
+  { value: 'members', label: 'Most Members' },
+  { value: 'spots', label: 'Most Spots Available' },
+]
+
 export default function Explorer() {
   const { circles, isLoading, stats, fetchCircles } = useCircles()
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [tokenFilter, setTokenFilter] = useState('all')
+  const [sortBy, setSortBy] = useState('newest')
+  const [showAdvanced, setShowAdvanced] = useState(false)
+  const [minAmount, setMinAmount] = useState('')
+  const [maxAmount, setMaxAmount] = useState('')
+  const [onlyAvailable, setOnlyAvailable] = useState(false)
 
   useEffect(() => {
     fetchCircles({ status: statusFilter === 'all' ? undefined : statusFilter })
   }, [statusFilter, fetchCircles])
 
-  const filteredCircles = circles.filter(circle => {
-    if (!searchQuery) return true
-    return (
-      circle.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      circle.name?.toLowerCase().includes(searchQuery.toLowerCase())
-    )
-  })
+  const hasActiveFilters = tokenFilter !== 'all' || minAmount || maxAmount || onlyAvailable || sortBy !== 'newest'
+
+  const filteredCircles = useMemo(() => {
+    let result = circles.filter(circle => {
+      // Text search
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase()
+        const matchesName = circle.name?.toLowerCase().includes(q)
+        const matchesId = circle.id.toLowerCase().includes(q)
+        const matchesCreator = circle.creator?.toLowerCase().includes(q)
+        if (!matchesName && !matchesId && !matchesCreator) return false
+      }
+      // Token filter
+      if (tokenFilter !== 'all') {
+        const circleToken = circle.tokenId || '0field'
+        if (circleToken !== tokenFilter) return false
+      }
+      // Amount range
+      const amountAleo = circle.contributionAmount / 1_000_000
+      if (minAmount && amountAleo < parseFloat(minAmount)) return false
+      if (maxAmount && amountAleo > parseFloat(maxAmount)) return false
+      // Available spots
+      if (onlyAvailable && (circle.status !== 0 || circle.membersJoined >= circle.maxMembers)) return false
+      return true
+    })
+
+    // Sort
+    result.sort((a, b) => {
+      switch (sortBy) {
+        case 'oldest': return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        case 'amount-high': return b.contributionAmount - a.contributionAmount
+        case 'amount-low': return a.contributionAmount - b.contributionAmount
+        case 'members': return b.membersJoined - a.membersJoined
+        case 'spots': return (b.maxMembers - b.membersJoined) - (a.maxMembers - a.membersJoined)
+        default: return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      }
+    })
+    return result
+  }, [circles, searchQuery, tokenFilter, minAmount, maxAmount, onlyAvailable, sortBy])
 
   return (
     <PageTransition>
@@ -114,7 +170,7 @@ export default function Explorer() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search circles by name or ID..."
+              placeholder="Search by name, ID, or creator address..."
               className="input pl-12"
             />
           </div>
@@ -135,8 +191,108 @@ export default function Explorer() {
                 </button>
               ))}
             </div>
+            <button
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              className={`p-2.5 rounded-xl transition-colors relative ${
+                showAdvanced || hasActiveFilters
+                  ? 'bg-amber-100 text-amber-700'
+                  : 'bg-cream-100 text-midnight-600 hover:bg-cream-200'
+              }`}
+              title="Advanced filters"
+            >
+              <SlidersHorizontal className="w-5 h-5" />
+              {hasActiveFilters && !showAdvanced && (
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-amber-500 rounded-full" />
+              )}
+            </button>
           </div>
         </motion.div>
+
+        {/* Advanced Filters Panel */}
+        {showAdvanced && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="card mb-8 border border-amber-200/50"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-midnight-700 flex items-center gap-2">
+                <SlidersHorizontal className="w-4 h-4" />
+                Advanced Filters
+              </h3>
+              {hasActiveFilters && (
+                <button
+                  onClick={() => { setTokenFilter('all'); setMinAmount(''); setMaxAmount(''); setOnlyAvailable(false); setSortBy('newest') }}
+                  className="text-xs text-terra-600 hover:text-terra-700 flex items-center gap-1"
+                >
+                  <X className="w-3 h-3" /> Clear all
+                </button>
+              )}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Token Type */}
+              <div>
+                <label className="text-xs font-medium text-midnight-600 mb-1 block">Token</label>
+                <select
+                  value={tokenFilter}
+                  onChange={(e) => setTokenFilter(e.target.value)}
+                  className="w-full text-sm border border-cream-300 rounded-xl px-3 py-2 bg-white text-midnight-700 focus:ring-2 focus:ring-amber-400"
+                >
+                  {tokenFilters.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                </select>
+              </div>
+              {/* Contribution Range */}
+              <div>
+                <label className="text-xs font-medium text-midnight-600 mb-1 block">Min Amount</label>
+                <input
+                  type="number"
+                  value={minAmount}
+                  onChange={(e) => setMinAmount(e.target.value)}
+                  placeholder="0"
+                  className="w-full text-sm border border-cream-300 rounded-xl px-3 py-2 bg-white text-midnight-700 focus:ring-2 focus:ring-amber-400"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-midnight-600 mb-1 block">Max Amount</label>
+                <input
+                  type="number"
+                  value={maxAmount}
+                  onChange={(e) => setMaxAmount(e.target.value)}
+                  placeholder="∞"
+                  className="w-full text-sm border border-cream-300 rounded-xl px-3 py-2 bg-white text-midnight-700 focus:ring-2 focus:ring-amber-400"
+                />
+              </div>
+              {/* Sort */}
+              <div>
+                <label className="text-xs font-medium text-midnight-600 mb-1 block">Sort By</label>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="w-full text-sm border border-cream-300 rounded-xl px-3 py-2 bg-white text-midnight-700 focus:ring-2 focus:ring-amber-400"
+                >
+                  {sortOptions.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                </select>
+              </div>
+            </div>
+            <label className="flex items-center gap-2 mt-4 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={onlyAvailable}
+                onChange={(e) => setOnlyAvailable(e.target.checked)}
+                className="w-4 h-4 rounded border-cream-300 text-amber-500 focus:ring-amber-400"
+              />
+              <span className="text-sm text-midnight-600">Only show circles with available spots</span>
+            </label>
+          </motion.div>
+        )}
+
+        {/* Results count */}
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-sm text-midnight-500">
+            {filteredCircles.length} circle{filteredCircles.length !== 1 ? 's' : ''} found
+          </p>
+        </div>
 
         {/* Results */}
         {isLoading ? (
