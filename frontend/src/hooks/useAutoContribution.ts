@@ -3,6 +3,20 @@ import { useWallet } from '@provablehq/aleo-wallet-adaptor-react'
 import { fetchSchedules, saveSchedule, deleteSchedule } from '../services/api'
 import type { ScheduleData } from '../services/api'
 
+// ── localStorage fallback for when the backend is unreachable ──
+const STORAGE_KEY = 'zkcircles_auto_schedules'
+
+function getLocalSchedules(address: string): ScheduleData[] {
+  try {
+    const raw = localStorage.getItem(`${STORAGE_KEY}_${address}`)
+    return raw ? JSON.parse(raw) : []
+  } catch { return [] }
+}
+
+function setLocalSchedules(address: string, schedules: ScheduleData[]) {
+  localStorage.setItem(`${STORAGE_KEY}_${address}`, JSON.stringify(schedules))
+}
+
 export function useAutoContribution() {
   const wallet = useWallet() as any
   const { connected, address } = wallet
@@ -12,8 +26,16 @@ export function useAutoContribution() {
   const loadSchedules = useCallback(async () => {
     if (!address) return
     setIsLoading(true)
-    const data = await fetchSchedules(address)
-    setSchedules(data)
+    try {
+      const data = await fetchSchedules(address)
+      if (data.length > 0) {
+        setSchedules(data)
+        setIsLoading(false)
+        return
+      }
+    } catch { /* backend unreachable, fall through */ }
+    // Fallback to localStorage
+    setSchedules(getLocalSchedules(address))
     setIsLoading(false)
   }, [address])
 
@@ -26,25 +48,45 @@ export function useAutoContribution() {
     notifyBeforeMinutes = 60,
   ): Promise<{ success: boolean }> => {
     if (!address) return { success: false }
+
+    // Try backend first
     const result = await saveSchedule({
       circleId,
       memberAddress: address,
       enabled: true,
       notifyBeforeMinutes,
     })
-    if (result.success) {
-      await loadSchedules()
-      // Register for push notifications if supported
-      registerPushNotifications()
+
+    if (!result.success) {
+      // Fallback: save to localStorage
+      const local = getLocalSchedules(address)
+      const idx = local.findIndex(s => s.circleId === circleId)
+      const entry: ScheduleData = {
+        circleId,
+        enabled: true,
+        notifyBeforeMinutes,
+        lastNotifiedCycle: 0,
+      }
+      if (idx >= 0) { local[idx] = entry } else { local.push(entry) }
+      setLocalSchedules(address, local)
     }
-    return result
+
+    await loadSchedules()
+    return { success: true }
   }, [address, loadSchedules])
 
   const disableAutoContribution = useCallback(async (
     circleId: string,
   ): Promise<void> => {
     if (!address) return
+
+    // Try backend
     await deleteSchedule(circleId, address)
+
+    // Also remove from localStorage
+    const local = getLocalSchedules(address)
+    setLocalSchedules(address, local.filter(s => s.circleId !== circleId))
+
     await loadSchedules()
   }, [address, loadSchedules])
 
@@ -64,13 +106,5 @@ export function useAutoContribution() {
     isScheduled,
     getSchedule,
     refreshSchedules: loadSchedules,
-  }
-}
-
-function registerPushNotifications() {
-  if (!('serviceWorker' in navigator) || !('Notification' in window)) return
-
-  if (Notification.permission === 'default') {
-    Notification.requestPermission()
   }
 }
