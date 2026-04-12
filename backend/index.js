@@ -94,7 +94,7 @@ app.get('/', (req, res) => {
     name: 'ZkCircles API',
     version: '1.0.0',
     status: 'running',
-    program: 'zk_circles_v13.aleo',
+    program: 'zk_circles_v14.aleo',
     network: 'testnet',
     mode: USE_MOCK ? 'mock' : 'production',
     endpoints: [

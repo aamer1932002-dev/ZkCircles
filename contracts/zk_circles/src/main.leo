@@ -16,7 +16,7 @@ import credits.aleo;
 import test_usdcx_stablecoin.aleo;
 import test_usad_stablecoin.aleo;
 
-program zk_circles_v13.aleo {
+program zk_circles_v14.aleo {
 
     // circle status values
     // 0 = forming   (accepting members)
@@ -239,8 +239,14 @@ program zk_circles_v13.aleo {
         membership: CircleMembership,
         public cycle: u8,
         public payout_amount: u64
-    ) -> (PayoutReceipt, Final) {
+    ) -> (CircleMembership, PayoutReceipt, Final) {
         let tf: Final = credits.aleo::transfer_public(self.signer, payout_amount);
+
+        let new_membership: CircleMembership = CircleMembership {
+            owner: self.signer,
+            circle_id: membership.circle_id,
+            contribution_amount: membership.contribution_amount
+        };
 
         let receipt: PayoutReceipt = PayoutReceipt {
             owner: self.signer,
@@ -251,7 +257,7 @@ program zk_circles_v13.aleo {
         let claimer: address = self.signer;
         let cid: field = membership.circle_id;
 
-        return (receipt, final {
+        return (new_membership, receipt, final {
             let info: CircleInfo = circles.get(cid);
             assert_eq(info.status, 1u8);
             assert_eq(info.current_cycle, cycle);
@@ -386,8 +392,14 @@ program zk_circles_v13.aleo {
         membership: CircleMembership,
         public cycle: u8,
         public payout_amount: u64
-    ) -> (PayoutReceipt, Final) {
+    ) -> (CircleMembership, PayoutReceipt, Final) {
         let tf: Final = test_usdcx_stablecoin.aleo::transfer_public(self.signer, payout_amount as u128);
+
+        let new_membership: CircleMembership = CircleMembership {
+            owner: self.signer,
+            circle_id: membership.circle_id,
+            contribution_amount: membership.contribution_amount
+        };
 
         let receipt: PayoutReceipt = PayoutReceipt {
             owner: self.signer,
@@ -398,7 +410,7 @@ program zk_circles_v13.aleo {
         let claimer: address = self.signer;
         let cid: field = membership.circle_id;
 
-        return (receipt, final {
+        return (new_membership, receipt, final {
             let info: CircleInfo = circles.get(cid);
             assert_eq(info.status, 1u8);
             assert_eq(info.current_cycle, cycle);
@@ -476,8 +488,14 @@ program zk_circles_v13.aleo {
         membership: CircleMembership,
         public cycle: u8,
         public payout_amount: u64
-    ) -> (PayoutReceipt, Final) {
+    ) -> (CircleMembership, PayoutReceipt, Final) {
         let tf: Final = test_usad_stablecoin.aleo::transfer_public(self.signer, payout_amount as u128);
+
+        let new_membership: CircleMembership = CircleMembership {
+            owner: self.signer,
+            circle_id: membership.circle_id,
+            contribution_amount: membership.contribution_amount
+        };
 
         let receipt: PayoutReceipt = PayoutReceipt {
             owner: self.signer,
@@ -488,7 +506,7 @@ program zk_circles_v13.aleo {
         let claimer: address = self.signer;
         let cid: field = membership.circle_id;
 
-        return (receipt, final {
+        return (new_membership, receipt, final {
             let info: CircleInfo = circles.get(cid);
             assert_eq(info.status, 1u8);
             assert_eq(info.current_cycle, cycle);

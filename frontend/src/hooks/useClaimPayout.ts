@@ -6,6 +6,7 @@ import {
   setCachedMembership,
   clearCachedMembership,
   getJoinTxId,
+  setJoinTxId,
   fetchRecordCiphertextFromChain,
   fetchRecordByIndexFromChain,
   decryptAndCacheMembership,
@@ -225,9 +226,30 @@ export function useClaimPayout() {
         }
       }
 
-      // Accepted — membership is consumed by claim_payout in v11
+      // Accepted — claim_payout now returns (CircleMembership, PayoutReceipt, Final)
+      // CircleMembership is at record output index 0
       setTransactionStatus('Payout confirmed on-chain!')
       clearCachedMembership(address, circleId)
+      setJoinTxId(address, circleId, confirmation.txId)
+
+      // Cache the returned CircleMembership (output[0]) for future contribute/claim
+      try {
+        let ciphertext: string | null =
+          (confirmation.recordOutputs?.length ? confirmation.recordOutputs[0] : null) ?? null
+        if (!ciphertext) {
+          ciphertext = await fetchRecordByIndexFromChain(confirmation.txId, PROGRAM_ID, 0)
+        }
+        if (ciphertext) {
+          setCachedMembership(address, circleId, ciphertext)
+          console.log('[ClaimPayout] Cached new CircleMembership from output[0]')
+          if (decrypt) {
+            await decryptAndCacheMembership(address, circleId, ciphertext, decrypt)
+            console.log('[ClaimPayout] Upgraded to decrypted plaintext')
+          }
+        }
+      } catch (e) {
+        console.warn('[ClaimPayout] Cache update failed (non-critical):', e)
+      }
 
       try {
         await recordPayoutBackend({ circleId, memberAddress: address, cycle: cycleNumber, amount: payoutAmount, transactionId: confirmation.txId })
