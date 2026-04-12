@@ -23,7 +23,6 @@ import {
   Flag,
   Link2,
   Gavel,
-  Bell,
   LayoutDashboard,
 } from 'lucide-react'
 import { useCircleDetail } from '../hooks/useCircleDetail'
@@ -36,7 +35,6 @@ import { useVerifyMembership } from '../hooks/useVerifyMembership'
 import { useDisputeResolution } from '../hooks/useDisputeResolution'
 import { useJoinCircle } from '../hooks/useJoinCircle'
 import { useInviteLinks } from '../hooks/useInviteLinks'
-import { useAutoContribution } from '../hooks/useAutoContribution'
 import { dissolveCircle } from '../services/api'
 import NotificationBanner, { NotificationToggle } from '../components/NotificationBanner'
 import { useNotifications } from '../hooks/useNotifications'
@@ -65,14 +63,12 @@ export default function CircleDetail() {
   const { joinCircle, isJoining, transactionStatus: joinStatus } = useJoinCircle()
   const { notifyPayoutTurn, notifyContributionDue, notifyCircleFull, isCircleEnabled } = useNotifications()
   const { generateInvite, copyInviteLink, isCreating: isGeneratingInvite } = useInviteLinks()
-  const { enableAutoContribution, disableAutoContribution, isScheduled, isLoading: isTogglingSchedule } = useAutoContribution()
   const notifiedRef = useRef<Set<string>>(new Set())
 
   const [copied, setCopied] = useState(false)
   const [showTransferModal, setShowTransferModal] = useState(false)
   const [transferAddress, setTransferAddress] = useState('')
   const [membershipVerified, setMembershipVerified] = useState<boolean | null>(null)
-  const [reminderMinutes, setReminderMinutes] = useState(60)
   const [showDissolveModal, setShowDissolveModal] = useState(false)
   const [isDissolving, setIsDissolving] = useState(false)
 
@@ -760,80 +756,7 @@ export default function CircleDetail() {
                   </button>
                 </div>
 
-                {/* Auto-Contribution Reminder */}
-                {circleId && (
-                  <div className="border-t border-cream-200 pt-4 mt-4">
-                    <h4 className="text-sm font-semibold text-midnight-700 mb-3 flex items-center gap-2">
-                      <Bell className="w-4 h-4" />
-                      Contribution Reminders
-                    </h4>
 
-                    {isScheduled(circleId) ? (
-                      /* ── Currently enabled ── */
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between bg-forest-50 rounded-xl px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <CheckCircle2 className="w-4 h-4 text-forest-600" />
-                            <span className="text-sm font-medium text-forest-700">Reminders Active</span>
-                          </div>
-                          <button
-                            onClick={async () => {
-                              await disableAutoContribution(circleId!)
-                              toast.success('Reminders disabled')
-                            }}
-                            disabled={isTogglingSchedule}
-                            className="text-xs text-midnight-500 hover:text-terra-600 transition-colors underline"
-                          >
-                            {isTogglingSchedule ? 'Disabling…' : 'Turn off'}
-                          </button>
-                        </div>
-                        <p className="text-xs text-midnight-500 text-center">
-                          You'll receive a browser notification before each contribution deadline.
-                        </p>
-                      </div>
-                    ) : (
-                      /* ── Not enabled — show setup ── */
-                      <div className="space-y-3">
-                        <p className="text-xs text-midnight-500">
-                          Get a browser notification before each contribution deadline so you never miss a cycle.
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <label className="text-xs text-midnight-600 whitespace-nowrap">Remind me</label>
-                          <select
-                            value={reminderMinutes}
-                            onChange={(e) => setReminderMinutes(Number(e.target.value))}
-                            className="flex-1 text-xs border border-cream-300 rounded-lg px-2 py-1.5 bg-white text-midnight-700 focus:ring-2 focus:ring-amber-400 focus:border-amber-400"
-                          >
-                            <option value={15}>15 min before</option>
-                            <option value={30}>30 min before</option>
-                            <option value={60}>1 hour before</option>
-                            <option value={180}>3 hours before</option>
-                            <option value={1440}>1 day before</option>
-                          </select>
-                        </div>
-                        <button
-                          onClick={async () => {
-                            const result = await enableAutoContribution(circleId!, reminderMinutes)
-                            if (result.success) {
-                              toast.success(`Reminders enabled! You'll be notified ${reminderMinutes >= 60 ? `${reminderMinutes / 60}h` : `${reminderMinutes}m`} before each deadline.`)
-                            } else {
-                              toast.error('Failed to enable reminders')
-                            }
-                          }}
-                          disabled={isTogglingSchedule}
-                          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white transition-colors text-sm font-medium disabled:opacity-50"
-                        >
-                          {isTogglingSchedule ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <Bell className="w-4 h-4" />
-                          )}
-                          {isTogglingSchedule ? 'Enabling…' : 'Enable Reminders'}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
               </motion.div>
             )}
 
