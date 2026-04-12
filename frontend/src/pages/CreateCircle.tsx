@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { useCreateCircle } from '../hooks/useCreateCircle'
 import { TOKENS, getTokenConfig, TOKEN_ID_ALEO } from '../config'
+import PageTransition from '../components/PageTransition'
 
 export default function CreateCircle() {
   const navigate = useNavigate()
@@ -109,13 +110,15 @@ export default function CreateCircle() {
 
   if (!connected) {
     return (
+      <PageTransition>
       <div className="min-h-[70vh] flex items-center justify-center px-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
+          transition={{ ease: [0.25, 0.4, 0.25, 1] }}
           className="text-center"
         >
-          <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-6">
+          <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg shadow-amber-200/30">
             <Users className="w-10 h-10 text-amber-600" />
           </div>
           <h2 className="font-display text-2xl font-semibold text-midnight-900 mb-3">
@@ -126,23 +129,36 @@ export default function CreateCircle() {
           </p>
         </motion.div>
       </div>
+      </PageTransition>
     )
   }
 
   return (
+    <PageTransition>
     <div className="min-h-screen py-12 md:py-20">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
+          transition={{ ease: [0.25, 0.4, 0.25, 1] }}
           className="mb-8"
         >
-          <h1 className="font-display text-3xl md:text-4xl font-bold text-midnight-900 mb-2">
+          <motion.h1 
+            className="font-display text-3xl md:text-4xl font-bold text-midnight-900 mb-2"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
             Create a Savings Circle
-          </h1>
-          <p className="text-midnight-600">
+          </motion.h1>
+          <motion.p 
+            className="text-midnight-600"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.2 }}
+          >
             Set up your community savings group in just a few steps.
-          </p>
+          </motion.p>
         </motion.div>
 
         <div className="grid lg:grid-cols-3 gap-8">
@@ -150,10 +166,10 @@ export default function CreateCircle() {
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
+            transition={{ delay: 0.1, ease: [0.25, 0.4, 0.25, 1] }}
             className="lg:col-span-2"
           >
-            <form onSubmit={handleSubmit} className="card space-y-6">
+            <form onSubmit={handleSubmit} className="card space-y-6 backdrop-blur-sm">
               {/* Circle Name */}
               <div>
                 <label htmlFor="name" className="input-label">
@@ -318,10 +334,10 @@ export default function CreateCircle() {
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
+            transition={{ delay: 0.2, ease: [0.25, 0.4, 0.25, 1] }}
             className="lg:col-span-1"
           >
-            <div className="card sticky top-24">
+            <div className="card sticky top-24 backdrop-blur-sm">
               <h3 className="font-display text-lg font-semibold text-midnight-900 mb-4">
                 Circle Summary
               </h3>
@@ -382,5 +398,6 @@ export default function CreateCircle() {
         </div>
       </div>
     </div>
+    </PageTransition>
   )
 }

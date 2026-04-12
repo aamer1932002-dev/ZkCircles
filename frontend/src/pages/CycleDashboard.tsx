@@ -15,6 +15,7 @@ import {
 import { getTokenConfig } from '../config'
 import { getCircleDetail, CircleData, MemberData } from '../services/api'
 import { shortenAddress, formatAleo } from '../utils/aleo-utils'
+import PageTransition from '../components/PageTransition'
 
 interface DashboardState {
   circle: CircleData
@@ -114,6 +115,7 @@ export default function CycleDashboard() {
   const symbol = tokenConfig.symbol
 
   return (
+    <PageTransition>
     <div className="min-h-screen py-12 md:py-20">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
@@ -335,5 +337,6 @@ export default function CycleDashboard() {
         </motion.div>
       </div>
     </div>
+    </PageTransition>
   )
 }

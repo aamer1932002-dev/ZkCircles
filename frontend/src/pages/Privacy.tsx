@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   ExternalLink
 } from 'lucide-react'
+import PageTransition from '../components/PageTransition'
 
 export default function Privacy() {
   const privacyFeatures = [
@@ -81,6 +82,7 @@ export default function Privacy() {
   ]
 
   return (
+    <PageTransition>
     <div className="min-h-screen">
       {/* Hero */}
       <section className="relative py-20 md:py-32 overflow-hidden">
@@ -281,5 +283,6 @@ export default function Privacy() {
         </div>
       </section>
     </div>
+    </PageTransition>
   )
 }

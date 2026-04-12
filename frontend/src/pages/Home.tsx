@@ -1,14 +1,21 @@
 import { Link } from 'react-router-dom'
 import { useWallet } from '@provablehq/aleo-wallet-adaptor-react'
-import { motion } from 'framer-motion'
+import { motion, useScroll, useTransform } from 'framer-motion'
+import { useRef } from 'react'
 import { 
   Zap, 
   ArrowRight, 
   CircleDot,
   CheckCircle2,
-  XCircle
+  XCircle,
+  Shield,
+  Users,
+  Coins,
+  Globe
 } from 'lucide-react'
 import ZkCirclesIllustration from '../components/ZkCirclesIllustration'
+import PageTransition from '../components/PageTransition'
+import AnimatedCounter from '../components/AnimatedCounter'
 
 export default function Home() {
   const { connected } = useWallet()
@@ -37,6 +44,7 @@ export default function Home() {
   ]
 
   return (
+    <PageTransition>
     <div className="overflow-hidden">
       {/* Hero Section */}
       <section className="relative min-h-[90vh] flex items-center">
@@ -46,17 +54,17 @@ export default function Home() {
         
         {/* Floating circles decoration */}
         <motion.div
-          className="absolute top-20 right-10 w-64 h-64 rounded-full border-2 border-amber-300/30"
+          className="absolute top-20 right-10 w-64 h-64 rounded-full border border-amber-300/20"
           animate={{ rotate: 360 }}
           transition={{ duration: 30, repeat: Infinity, ease: 'linear' }}
         />
         <motion.div
-          className="absolute bottom-20 left-10 w-48 h-48 rounded-full border-2 border-forest-300/30"
+          className="absolute bottom-20 left-10 w-48 h-48 rounded-full border border-forest-300/20"
           animate={{ rotate: -360 }}
           transition={{ duration: 25, repeat: Infinity, ease: 'linear' }}
         />
         <motion.div
-          className="absolute top-40 left-1/4 w-32 h-32 rounded-full bg-terra-200/20"
+          className="absolute top-40 left-1/4 w-32 h-32 rounded-full bg-terra-200/15"
           animate={{ y: [0, -20, 0] }}
           transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
         />
@@ -70,14 +78,19 @@ export default function Home() {
             <motion.div
               initial={{ opacity: 0, x: -30 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6 }}
+              transition={{ duration: 0.7, ease: [0.25, 0.4, 0.25, 1] }}
             >
-              <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-100 rounded-full mb-6">
+              <motion.div 
+                className="inline-flex items-center gap-2 px-4 py-2 bg-amber-100/80 backdrop-blur-sm rounded-full mb-6 border border-amber-200/50"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+              >
                 <CircleDot className="w-4 h-4 text-amber-600" />
                 <span className="text-sm font-medium text-amber-800">
                   Powered by Aleo Zero-Knowledge Proofs
                 </span>
-              </div>
+              </motion.div>
 
               <h1 className="font-display text-4xl md:text-5xl lg:text-6xl font-bold text-midnight-900 leading-tight mb-6">
                 Community Savings,{' '}
@@ -86,15 +99,25 @@ export default function Home() {
                 </span>
               </h1>
 
-              <p className="text-lg md:text-xl text-midnight-600 mb-8 max-w-xl">
+              <motion.p 
+                className="text-lg md:text-xl text-midnight-600 mb-8 max-w-xl leading-relaxed"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+              >
                 ZkCircles brings traditional rotating savings (tandas, chamas, stokvels) 
                 to the blockchain with complete privacy and trustless guarantees.
-              </p>
+              </motion.p>
 
-              <div className="flex flex-col sm:flex-row gap-4 mb-12">
+              <motion.div 
+                className="flex flex-col sm:flex-row gap-4 mb-12"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+              >
                 {connected ? (
                   <>
-                    <Link to="/create" className="btn-primary flex items-center justify-center gap-2">
+                    <Link to="/create" className="btn-primary flex items-center justify-center gap-2 glow-pulse">
                       Create a Circle
                       <ArrowRight className="w-5 h-5" />
                     </Link>
@@ -104,7 +127,7 @@ export default function Home() {
                   </>
                 ) : (
                   <>
-                    <Link to="/how-it-works" className="btn-primary flex items-center justify-center gap-2">
+                    <Link to="/how-it-works" className="btn-primary flex items-center justify-center gap-2 glow-pulse">
                       Learn How It Works
                       <ArrowRight className="w-5 h-5" />
                     </Link>
@@ -113,39 +136,74 @@ export default function Home() {
                     </Link>
                   </>
                 )}
-              </div>
+              </motion.div>
 
-              {/* Trust badges — inspired by NullPay */}
-              <div className="flex flex-wrap gap-2 mb-10">
+              {/* Trust badges */}
+              <motion.div 
+                className="flex flex-wrap gap-2 mb-10"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.5 }}
+              >
                 {[
                   '100% Private',
                   'ZK Native',
                   'Built on Aleo',
                   'Non-Custodial',
                   'Trustless',
-                ].map((badge) => (
-                  <span
+                ].map((badge, i) => (
+                  <motion.span
                     key={badge}
-                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-midnight-900/90 text-amber-400 border border-amber-500/30 tracking-wide"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-midnight-900/90 text-amber-400 border border-amber-500/30 tracking-wide backdrop-blur-sm"
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.5 + i * 0.08 }}
                   >
                     <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
                     {badge}
-                  </span>
+                  </motion.span>
                 ))}
-              </div>
-
-
+              </motion.div>
             </motion.div>
 
             {/* Right content - Animated illustration */}
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
+              transition={{ duration: 0.7, delay: 0.3, ease: [0.25, 0.4, 0.25, 1] }}
               className="relative hidden lg:flex items-center justify-center"
             >
               <ZkCirclesIllustration />
             </motion.div>
+          </div>
+        </div>
+      </section>
+
+      {/* Live Stats Band */}
+      <section className="relative py-6 bg-midnight-950 border-y border-amber-500/20">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+            {[
+              { icon: Users, value: 17, label: 'On-chain Transitions', suffix: '' },
+              { icon: Shield, value: 10, label: 'Privacy Mappings', suffix: '' },
+              { icon: Coins, value: 3, label: 'Supported Tokens', suffix: '' },
+              { icon: Globe, value: 0, label: 'Plain Addresses Stored', suffix: '' },
+            ].map((stat, i) => (
+              <motion.div
+                key={stat.label}
+                className="text-center"
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1 }}
+              >
+                <stat.icon className="w-5 h-5 text-amber-400/70 mx-auto mb-2" />
+                <div className="font-display text-2xl md:text-3xl font-bold text-cream-50">
+                  <AnimatedCounter value={stat.value} suffix={stat.suffix} />
+                </div>
+                <div className="text-xs text-cream-400 mt-1">{stat.label}</div>
+              </motion.div>
+            ))}
           </div>
         </div>
       </section>
@@ -178,25 +236,25 @@ export default function Home() {
                 initial={{ opacity: 0, y: 30 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ delay: index * 0.15 }}
+                transition={{ delay: index * 0.12, ease: [0.25, 0.4, 0.25, 1] }}
                 className="relative"
               >
                 {/* Connector line */}
                 {index < howItWorks.length - 1 && (
-                  <div className="hidden lg:block absolute top-10 left-[60%] w-full h-0.5 bg-gradient-to-r from-amber-300 to-transparent" />
+                  <div className="hidden lg:block absolute top-10 left-[60%] w-full h-px bg-gradient-to-r from-amber-300/60 to-transparent" />
                 )}
                 
-                <div className="bg-white rounded-3xl p-6 shadow-warm border border-cream-200 relative group hover:border-amber-300 hover:shadow-amber-100/60 transition-all">
-                  {/* NullPay-style two-digit step number */}
+                <div className="bg-white/90 backdrop-blur-sm rounded-3xl p-6 shadow-warm border border-cream-200 relative group hover:border-amber-300 hover:shadow-warm-lg hover:-translate-y-2 transition-all duration-500">
+                  {/* Step number */}
                   <div className="flex items-start gap-3 mb-4">
-                    <span className="font-display text-4xl font-black text-amber-200 leading-none select-none group-hover:text-amber-300 transition-colors">
+                    <span className="font-display text-4xl font-black text-amber-200/80 leading-none select-none group-hover:text-amber-300 transition-colors duration-300">
                       {String(item.step).padStart(2, '0')}
                     </span>
                   </div>
                   <h3 className="font-display text-lg font-semibold text-midnight-900 mb-2">
                     {item.title}
                   </h3>
-                  <p className="text-midnight-600 text-sm">
+                  <p className="text-midnight-600 text-sm leading-relaxed">
                     {item.description}
                   </p>
                 </div>
@@ -221,9 +279,9 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Traditional vs ZkCircles comparison — inspired by NullPay */}
+      {/* Traditional vs ZkCircles comparison */}
       <section className="py-20 md:py-28 bg-midnight-950 relative overflow-hidden">
-        <div className="absolute inset-0 opacity-5">
+        <div className="absolute inset-0 opacity-[0.03]">
           <div className="absolute top-10 left-10 w-40 h-40 border border-amber-400 rounded-full" />
           <div className="absolute bottom-10 right-10 w-60 h-60 border border-forest-400 rounded-full" />
         </div>
@@ -232,6 +290,7 @@ export default function Home() {
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
+            transition={{ ease: [0.25, 0.4, 0.25, 1] }}
             className="text-center mb-12"
           >
             <h2 className="font-display text-3xl md:text-4xl font-bold text-cream-50 mb-3">
@@ -247,7 +306,8 @@ export default function Home() {
               initial={{ opacity: 0, x: -20 }}
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
-              className="rounded-2xl border border-white/10 bg-white/5 p-8"
+              transition={{ ease: [0.25, 0.4, 0.25, 1] }}
+              className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-8 hover:bg-white/[0.07] transition-colors duration-300"
             >
               <h3 className="font-display text-lg font-semibold text-cream-300 mb-6 flex items-center gap-2">
                 <XCircle className="w-5 h-5 text-red-400" />
@@ -263,7 +323,7 @@ export default function Home() {
                   'Single-point-of-failure organizer',
                 ].map((item) => (
                   <li key={item} className="flex items-start gap-3 text-sm text-cream-400">
-                    <XCircle className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />
+                    <XCircle className="w-4 h-4 text-red-400/80 mt-0.5 flex-shrink-0" />
                     {item}
                   </li>
                 ))}
@@ -275,9 +335,10 @@ export default function Home() {
               initial={{ opacity: 0, x: 20 }}
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
-              className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-8 relative"
+              transition={{ ease: [0.25, 0.4, 0.25, 1] }}
+              className="rounded-2xl border border-amber-500/30 bg-amber-500/5 backdrop-blur-sm p-8 relative hover:border-amber-500/50 hover:bg-amber-500/[0.08] transition-all duration-300"
             >
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-amber-500 rounded-full text-xs font-bold text-midnight-900 tracking-wider">
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-gradient-to-r from-amber-500 to-amber-600 rounded-full text-xs font-bold text-midnight-900 tracking-wider shadow-glow-amber">
                 ZKCIRCLES PROTOCOL
               </div>
               <h3 className="font-display text-lg font-semibold text-amber-400 mb-6 flex items-center gap-2">
@@ -307,7 +368,7 @@ export default function Home() {
       {/* CTA Section */}
       <section className="py-20 md:py-32 bg-midnight-950 relative overflow-hidden">
         {/* Background pattern */}
-        <div className="absolute inset-0 opacity-10">
+        <div className="absolute inset-0 opacity-[0.06]">
           <div className="absolute top-10 left-10 w-40 h-40 border-2 border-amber-400 rounded-full" />
           <div className="absolute bottom-10 right-10 w-60 h-60 border-2 border-forest-400 rounded-full" />
           <div className="absolute top-1/2 left-1/3 w-32 h-32 border-2 border-terra-400 rounded-full" />
@@ -318,18 +379,26 @@ export default function Home() {
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
+            transition={{ ease: [0.25, 0.4, 0.25, 1] }}
           >
-            <Zap className="w-16 h-16 text-amber-400 mx-auto mb-6" />
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              whileInView={{ scale: 1, opacity: 1 }}
+              viewport={{ once: true }}
+              transition={{ type: 'spring', stiffness: 200, damping: 15 }}
+            >
+              <Zap className="w-16 h-16 text-amber-400 mx-auto mb-6" />
+            </motion.div>
             <h2 className="font-display text-3xl md:text-4xl lg:text-5xl font-bold text-cream-50 mb-6">
               Ready to Start Saving{' '}
-              <span className="text-amber-400">Together</span>?
+              <span className="text-gradient-gold">Together</span>?
             </h2>
-            <p className="text-lg text-cream-300 mb-8 max-w-2xl mx-auto">
+            <p className="text-lg text-cream-300 mb-8 max-w-2xl mx-auto leading-relaxed">
               Join thousands of people around the world who are rediscovering 
               the power of community savings with the privacy of zero-knowledge proofs.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link to="/create" className="btn-primary">
+              <Link to="/create" className="btn-primary glow-pulse">
                 Create Your First Circle
               </Link>
               <Link to="/explorer" className="btn-secondary">
@@ -340,5 +409,6 @@ export default function Home() {
         </div>
       </section>
     </div>
+    </PageTransition>
   )
 }

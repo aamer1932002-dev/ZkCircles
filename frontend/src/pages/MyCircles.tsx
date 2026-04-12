@@ -16,6 +16,8 @@ import {
 } from 'lucide-react'
 import { useMyCircles } from '../hooks/useMyCircles'
 import { getTokenConfig } from '../config'
+import PageTransition from '../components/PageTransition'
+import AnimatedCounter from '../components/AnimatedCounter'
 
 const statusLabels = {
   0: { label: 'Forming', color: 'badge-amber' },
@@ -40,13 +42,15 @@ export default function MyCircles() {
 
   if (!connected) {
     return (
+      <PageTransition>
       <div className="min-h-[70vh] flex items-center justify-center px-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
+          transition={{ ease: [0.25, 0.4, 0.25, 1] }}
           className="text-center"
         >
-          <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-6">
+          <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg shadow-amber-200/30">
             <Circle className="w-10 h-10 text-amber-600" />
           </div>
           <h2 className="font-display text-2xl font-semibold text-midnight-900 mb-3">
@@ -57,16 +61,19 @@ export default function MyCircles() {
           </p>
         </motion.div>
       </div>
+      </PageTransition>
     )
   }
 
   return (
+    <PageTransition>
     <div className="min-h-screen py-12 md:py-20">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
+          transition={{ ease: [0.25, 0.4, 0.25, 1] }}
           className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8"
         >
           <div>
@@ -77,7 +84,7 @@ export default function MyCircles() {
               Manage and track your savings circles.
             </p>
           </div>
-          <Link to="/create" className="btn-primary inline-flex items-center gap-2">
+          <Link to="/create" className="btn-primary inline-flex items-center gap-2 glow-pulse">
             <Plus className="w-5 h-5" />
             Create Circle
           </Link>
@@ -88,11 +95,13 @@ export default function MyCircles() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.05 }}
+            transition={{ delay: 0.05, ease: [0.25, 0.4, 0.25, 1] }}
             className="mb-8"
           >
             <div className="flex items-center gap-2 mb-3">
-              <Zap className="w-5 h-5 text-amber-500" />
+              <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 2 }}>
+                <Zap className="w-5 h-5 text-amber-500" />
+              </motion.div>
               <h2 className="font-display text-lg font-semibold text-midnight-900">
                 Needs Your Attention
               </h2>
@@ -150,30 +159,30 @@ export default function MyCircles() {
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
+            transition={{ delay: 0.1, ease: [0.25, 0.4, 0.25, 1] }}
             className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8"
           >
-            <div className="card text-center">
+            <div className="card text-center group hover:-translate-y-1 transition-all duration-300">
               <div className="font-display text-2xl font-bold text-amber-600">
-                {circles.length}
+                <AnimatedCounter value={circles.length} />
               </div>
               <div className="text-sm text-midnight-600">Total Circles</div>
             </div>
-            <div className="card text-center">
+            <div className="card text-center group hover:-translate-y-1 transition-all duration-300">
               <div className="font-display text-2xl font-bold text-forest-600">
-                {circles.filter(c => c.status === 1).length}
+                <AnimatedCounter value={circles.filter(c => c.status === 1).length} />
               </div>
               <div className="text-sm text-midnight-600">Active</div>
             </div>
-            <div className="card text-center">
+            <div className="card text-center group hover:-translate-y-1 transition-all duration-300">
               <div className="font-display text-2xl font-bold text-midnight-600">
-                {circles.filter(c => c.status === 2).length}
+                <AnimatedCounter value={circles.filter(c => c.status === 2).length} />
               </div>
               <div className="text-sm text-midnight-600">Completed</div>
             </div>
-            <div className="card text-center">
+            <div className="card text-center group hover:-translate-y-1 transition-all duration-300">
               <div className="font-display text-2xl font-bold text-terra-600">
-                {circles.reduce((acc, c) => acc + (c.totalContributed ?? 0), 0) / 1_000_000}
+                <AnimatedCounter value={circles.reduce((acc, c) => acc + (c.totalContributed ?? 0), 0) / 1_000_000} decimals={2} />
               </div>
               <div className="text-sm text-midnight-600">Total Saved</div>
             </div>
@@ -226,13 +235,13 @@ export default function MyCircles() {
                 >
                   <Link
                     to={`/circle/${circle.id}`}
-                    className="card-interactive block"
+                    className="card-interactive block hover:-translate-y-0.5 transition-all duration-300"
                   >
                     <div className="flex flex-col lg:flex-row lg:items-center gap-6">
                       {/* Circle Info */}
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-3">
-                          <div className="w-12 h-12 bg-gradient-to-br from-amber-400 to-amber-600 rounded-full flex items-center justify-center">
+                          <div className="w-12 h-12 bg-gradient-to-br from-amber-400 to-amber-600 rounded-full flex items-center justify-center shadow-lg shadow-amber-200/40">
                             <Users className="w-6 h-6 text-white" />
                           </div>
                           <div>
@@ -301,5 +310,6 @@ export default function MyCircles() {
         )}
       </div>
     </div>
+    </PageTransition>
   )
 }

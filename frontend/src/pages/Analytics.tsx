@@ -11,6 +11,7 @@ import {
   Trophy, Zap, Target
 } from 'lucide-react'
 import { useAnalytics } from '../hooks/useAnalytics'
+import PageTransition from '../components/PageTransition'
 
 const COLORS = ['#D97706', '#16A34A', '#2563EB', '#DC2626', '#7C3AED', '#0891B2']
 
@@ -113,6 +114,7 @@ export default function Analytics() {
   }))
 
   return (
+    <PageTransition>
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
 
       {/* Header */}
@@ -415,5 +417,6 @@ export default function Analytics() {
       </motion.div>
 
     </div>
+    </PageTransition>
   )
 }

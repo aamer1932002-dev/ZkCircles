@@ -42,6 +42,7 @@ import { dissolveCircle } from '../services/api'
 import NotificationBanner, { NotificationToggle } from '../components/NotificationBanner'
 import { useNotifications } from '../hooks/useNotifications'
 import { getTokenConfig, TOKEN_ID_ALEO } from '../config'
+import PageTransition from '../components/PageTransition'
 
 const statusLabels = {
   0: { label: 'Forming', color: 'badge-amber', description: 'Waiting for members to join' },
@@ -230,10 +231,12 @@ export default function CircleDetail() {
 
   if (!circle) {
     return (
+      <PageTransition>
       <div className="min-h-[70vh] flex items-center justify-center px-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
+          transition={{ ease: [0.25, 0.4, 0.25, 1] }}
           className="text-center"
         >
           <AlertCircle className="w-16 h-16 text-terra-500 mx-auto mb-4" />
@@ -251,6 +254,7 @@ export default function CircleDetail() {
           </button>
         </motion.div>
       </div>
+      </PageTransition>
     )
   }
 
@@ -286,12 +290,14 @@ export default function CircleDetail() {
     : []
 
   return (
+    <PageTransition>
     <div className="min-h-screen py-12 md:py-20">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
+          transition={{ ease: [0.25, 0.4, 0.25, 1] }}
           className="mb-8"
         >
           <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
@@ -397,32 +403,32 @@ export default function CircleDetail() {
             <motion.div
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
+              transition={{ delay: 0.1, ease: [0.25, 0.4, 0.25, 1] }}
               className="grid grid-cols-2 md:grid-cols-4 gap-4"
             >
-              <div className="card text-center">
-                <Users className="w-6 h-6 text-amber-500 mx-auto mb-2" />
+              <div className="card text-center group hover:-translate-y-1 transition-all duration-300">
+                <Users className="w-6 h-6 text-amber-500 mx-auto mb-2 group-hover:scale-110 transition-transform" />
                 <div className="font-display text-2xl font-bold text-midnight-900">
                   {circle.membersJoined}/{circle.maxMembers}
                 </div>
                 <div className="text-xs text-midnight-500">Members</div>
               </div>
-              <div className="card text-center">
-                <Coins className="w-6 h-6 text-forest-500 mx-auto mb-2" />
+              <div className="card text-center group hover:-translate-y-1 transition-all duration-300">
+                <Coins className="w-6 h-6 text-forest-500 mx-auto mb-2 group-hover:scale-110 transition-transform" />
                 <div className="font-display text-2xl font-bold text-midnight-900">
                   {potSize.toFixed(2)}
                 </div>
                 <div className="text-xs text-midnight-500">{tokenSymbol} per pot</div>
               </div>
-              <div className="card text-center">
-                <Calendar className="w-6 h-6 text-terra-500 mx-auto mb-2" />
+              <div className="card text-center group hover:-translate-y-1 transition-all duration-300">
+                <Calendar className="w-6 h-6 text-terra-500 mx-auto mb-2 group-hover:scale-110 transition-transform" />
                 <div className="font-display text-2xl font-bold text-midnight-900">
                   {circle.currentCycle}/{circle.totalCycles}
                 </div>
                 <div className="text-xs text-midnight-500">Current Cycle</div>
               </div>
-              <div className="card text-center">
-                <Clock className="w-6 h-6 text-midnight-500 mx-auto mb-2" />
+              <div className="card text-center group hover:-translate-y-1 transition-all duration-300">
+                <Clock className="w-6 h-6 text-midnight-500 mx-auto mb-2 group-hover:scale-110 transition-transform" />
                 <div className="font-display text-2xl font-bold text-midnight-900">
                   {circle.totalCycles ?? circle.maxMembers}
                 </div>
@@ -435,7 +441,7 @@ export default function CircleDetail() {
               <motion.div
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
+                transition={{ delay: 0.2, ease: [0.25, 0.4, 0.25, 1] }}
                 className="card"
               >
                 <div className="flex justify-between items-center mb-4">
@@ -461,7 +467,7 @@ export default function CircleDetail() {
             <motion.div
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
+              transition={{ delay: 0.3, ease: [0.25, 0.4, 0.25, 1] }}
               className="card"
             >
               <h3 className="font-display text-lg font-semibold text-midnight-900 mb-4">
@@ -916,7 +922,7 @@ export default function CircleDetail() {
 
       {/* Transfer Membership Modal */}
       {showTransferModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -1009,7 +1015,7 @@ export default function CircleDetail() {
 
       {/* Dissolve Circle Modal */}
       {showDissolveModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -1078,5 +1084,6 @@ export default function CircleDetail() {
         </div>
       )}
     </div>
+    </PageTransition>
   )
 }

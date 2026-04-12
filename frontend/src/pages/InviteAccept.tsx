@@ -16,6 +16,7 @@ import { useJoinCircle } from '../hooks/useJoinCircle'
 import { useInviteLinks } from '../hooks/useInviteLinks'
 import { getTokenConfig } from '../config'
 import type { InviteData } from '../services/api'
+import PageTransition from '../components/PageTransition'
 
 export default function InviteAccept() {
   const { code } = useParams()
@@ -92,6 +93,7 @@ export default function InviteAccept() {
   const spotsLeft = invite.maxMembers - invite.membersJoined
 
   return (
+    <PageTransition>
     <div className="min-h-screen py-12 md:py-20">
       <div className="max-w-lg mx-auto px-4 sm:px-6">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
@@ -168,5 +170,6 @@ export default function InviteAccept() {
         </motion.div>
       </div>
     </div>
+    </PageTransition>
   )
 }

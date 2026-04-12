@@ -71,7 +71,7 @@ export default function Footer() {
                 href="https://github.com"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="p-2 rounded-lg bg-midnight-800 hover:bg-midnight-700 transition-colors"
+                className="p-2 rounded-lg bg-midnight-800 hover:bg-midnight-700 hover:scale-110 transition-all duration-200"
               >
                 <Github className="w-5 h-5" />
               </a>
@@ -79,7 +79,7 @@ export default function Footer() {
                 href="https://twitter.com"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="p-2 rounded-lg bg-midnight-800 hover:bg-midnight-700 transition-colors"
+                className="p-2 rounded-lg bg-midnight-800 hover:bg-midnight-700 hover:scale-110 transition-all duration-200"
               >
                 <Twitter className="w-5 h-5" />
               </a>
@@ -160,7 +160,7 @@ export default function Footer() {
               © {currentYear} ZkCircles. All rights reserved.
             </p>
             <p className="text-cream-500 text-sm flex items-center gap-1">
-              Built with <Heart className="w-4 h-4 text-terra-500 fill-terra-500" /> on Aleo
+              Built with <Heart className="w-4 h-4 text-terra-500 fill-terra-500 animate-pulse" /> on Aleo
             </p>
           </div>
         </div>

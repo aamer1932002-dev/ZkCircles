@@ -1,5 +1,6 @@
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, useLocation } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
+import { AnimatePresence } from 'framer-motion'
 
 // Layout
 import Layout from './components/Layout'
@@ -21,6 +22,8 @@ import VerifyIdentity from './pages/VerifyIdentity'
 import VerifyIdGate from './components/VerifyIdGate'
 
 function App() {
+  const location = useLocation()
+
   return (
     <>
       <Toaster
@@ -48,8 +51,9 @@ function App() {
           },
         }}
       />
-      <Routes>
-        <Route path="/" element={<Layout />}>
+      <AnimatePresence mode="wait">
+        <Routes location={location} key={location.pathname}>
+          <Route path="/" element={<Layout />}>
           <Route index element={<Home />} />
           <Route path="create" element={<VerifyIdGate><CreateCircle /></VerifyIdGate>} />
           <Route path="join" element={<VerifyIdGate><JoinCircle /></VerifyIdGate>} />
@@ -67,6 +71,7 @@ function App() {
           <Route path="privacy" element={<Privacy />} />
         </Route>
       </Routes>
+      </AnimatePresence>
     </>
   )
 }

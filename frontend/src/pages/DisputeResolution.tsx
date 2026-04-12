@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import { useOnChainDispute } from '../hooks/useOnChainDispute'
 import { fetchDisputes, DisputeData } from '../services/api'
+import PageTransition from '../components/PageTransition'
 import { getCircleDetail, MemberData } from '../services/api'
 import { DISPUTE_REASONS, DISPUTE_STATUSES } from '../config'
 import { shortenAddress } from '../utils/aleo-utils'
@@ -115,6 +116,7 @@ export default function DisputeResolution() {
   }
 
   return (
+    <PageTransition>
     <div className="min-h-screen py-12 md:py-20">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
@@ -391,5 +393,6 @@ export default function DisputeResolution() {
         )}
       </div>
     </div>
+    </PageTransition>
   )
 }

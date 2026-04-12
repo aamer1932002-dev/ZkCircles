@@ -16,6 +16,7 @@ import {
 import { useJoinCircle } from '../hooks/useJoinCircle'
 import { useCircles } from '../hooks/useCircles'
 import { getTokenConfig } from '../config'
+import PageTransition from '../components/PageTransition'
 
 export default function JoinCircle() {
   const { circleId: urlCircleId } = useParams()
@@ -77,6 +78,7 @@ export default function JoinCircle() {
   }
 
   return (
+    <PageTransition>
     <div className="min-h-screen py-12 md:py-20">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <motion.div
@@ -278,5 +280,6 @@ export default function JoinCircle() {
         </motion.div>
       </div>
     </div>
+    </PageTransition>
   )
 }

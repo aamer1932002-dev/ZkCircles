@@ -11,6 +11,7 @@ import {
   KeyRound,
 } from 'lucide-react'
 import { useZkEmailVerification } from '../hooks/useZkEmailVerification'
+import PageTransition from '../components/PageTransition'
 
 const steps = [
   { id: 'idle', label: 'Enter Email', icon: Mail },
@@ -44,6 +45,7 @@ export default function VerifyIdentity() {
   const currentStepIdx = steps.findIndex(s => s.id === step)
 
   return (
+    <PageTransition>
     <div className="min-h-screen py-12 md:py-20">
       <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
@@ -208,5 +210,6 @@ export default function VerifyIdentity() {
         </motion.div>
       </div>
     </div>
+    </PageTransition>
   )
 }

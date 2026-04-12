@@ -18,8 +18,16 @@ const navLinks = [
 export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [isVerified, setIsVerified] = useState<boolean | null>(null)
+  const [scrolled, setScrolled] = useState(false)
   const location = useLocation()
   const { connected, address } = useWallet() as any
+
+  // Track scroll for header background change
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 20)
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
 
   useEffect(() => {
     if (!connected || !address) {
@@ -46,7 +54,11 @@ export default function Header() {
   }, [])
 
   return (
-    <header className="sticky top-0 z-50 bg-cream-50/90 backdrop-blur-md border-b border-cream-200">
+    <header className={`sticky top-0 z-50 transition-all duration-500 ${
+      scrolled 
+        ? 'bg-cream-50/85 backdrop-blur-xl shadow-warm border-b border-cream-200/80' 
+        : 'bg-cream-50/60 backdrop-blur-md border-b border-transparent'
+    }`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 md:h-20">
           {/* Logo */}
@@ -108,7 +120,7 @@ export default function Header() {
             {connected && (
               <Link
                 to="/create"
-                className="hidden md:flex btn-primary text-sm py-2 px-4"
+                className="hidden md:flex btn-primary text-sm py-2 px-4 glow-pulse"
               >
                 Create Circle
               </Link>
