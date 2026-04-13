@@ -10,7 +10,8 @@ import {
   Shield,
   Users,
   Coins,
-  Globe
+  Globe,
+  Play
 } from 'lucide-react'
 import ZkCirclesIllustration from '../components/ZkCirclesIllustration'
 import PageTransition from '../components/PageTransition'
@@ -45,33 +46,31 @@ export default function Home() {
   return (
     <PageTransition>
     <div className="overflow-hidden">
-      {/* Hero Section */}
-      <section className="relative min-h-[90vh] flex items-center">
-        {/* Background decorations */}
-        <div className="absolute inset-0 bg-hero-gradient opacity-80" />
-        <div className="absolute inset-0 bg-pattern-circles opacity-50" />
-        
-        {/* Floating circles decoration */}
+      {/* Hero Section — full bleed wallpaper */}
+      <section className="relative min-h-[92vh] flex items-center overflow-hidden">
+        {/* Full background wallpaper image */}
+        <div
+          className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+          style={{ backgroundImage: "url('/wallpaper.png')" }}
+        />
+        {/* Dark overlay for text readability */}
+        <div className="absolute inset-0 bg-gradient-to-r from-midnight-950/85 via-midnight-950/60 to-midnight-950/30" />
+        {/* Bottom fade */}
+        <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-midnight-950 to-transparent" />
+
+        {/* Floating circle accents */}
         <motion.div
-          className="absolute top-20 right-10 w-64 h-64 rounded-full border border-amber-300/20"
+          className="absolute top-20 right-[15%] w-64 h-64 rounded-full border border-amber-400/10"
           animate={{ rotate: 360 }}
+          transition={{ duration: 40, repeat: Infinity, ease: 'linear' }}
+        />
+        <motion.div
+          className="absolute bottom-32 right-[10%] w-40 h-40 rounded-full border border-amber-300/10"
+          animate={{ rotate: -360 }}
           transition={{ duration: 30, repeat: Infinity, ease: 'linear' }}
         />
-        <motion.div
-          className="absolute bottom-20 left-10 w-48 h-48 rounded-full border border-forest-300/20"
-          animate={{ rotate: -360 }}
-          transition={{ duration: 25, repeat: Infinity, ease: 'linear' }}
-        />
-        <motion.div
-          className="absolute top-40 left-1/4 w-32 h-32 rounded-full bg-terra-200/15"
-          animate={{ y: [0, -20, 0] }}
-          transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
-        />
-        
-        {/* Warm glow */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-warm-glow" />
 
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 w-full">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             {/* Left content */}
             <motion.div
@@ -80,69 +79,84 @@ export default function Home() {
               transition={{ duration: 0.7, ease: [0.25, 0.4, 0.25, 1] }}
             >
               <motion.div 
-                className="inline-flex items-center gap-2 px-4 py-2 bg-amber-100/80 backdrop-blur-sm rounded-full mb-6 border border-amber-200/50"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500/15 backdrop-blur-md rounded-full mb-8 border border-amber-400/30"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 }}
               >
-                <CircleDot className="w-4 h-4 text-amber-600" />
-                <span className="text-sm font-medium text-amber-800">
+                <CircleDot className="w-4 h-4 text-amber-400" />
+                <span className="text-sm font-medium text-amber-200">
                   Powered by Aleo Zero-Knowledge Proofs
                 </span>
               </motion.div>
 
-              <h1 className="font-display text-4xl md:text-5xl lg:text-6xl font-bold text-midnight-900 leading-tight mb-6">
-                Community Savings,{' '}
-                <span className="text-gradient-warm">
-                  Reimagined
-                </span>
+              {/* Large hero typography — inspired by ref image split style */}
+              <h1 className="font-display font-bold leading-[0.95] mb-6">
+                <motion.span 
+                  className="block text-5xl md:text-7xl lg:text-8xl text-cream-50 tracking-widest uppercase"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.15, duration: 0.6 }}
+                >
+                  Private
+                </motion.span>
+                <motion.span 
+                  className="block text-5xl md:text-7xl lg:text-8xl text-amber-400 tracking-widest uppercase"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3, duration: 0.6 }}
+                >
+                  Savings
+                </motion.span>
               </h1>
 
               <motion.p 
-                className="text-lg md:text-xl text-midnight-600 mb-8 max-w-xl leading-relaxed"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-              >
-                ZkCircles brings traditional rotating savings (tandas, chamas, stokvels) 
-                to the blockchain with complete privacy and trustless guarantees.
-              </motion.p>
-
-              <motion.div 
-                className="flex flex-col sm:flex-row gap-4 mb-12"
+                className="text-lg md:text-xl text-cream-300 mb-8 max-w-lg leading-relaxed"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.4 }}
               >
+                Trustless rotating savings circles with on-chain credit scores and peer-to-peer lending.
+              </motion.p>
+
+              <motion.div 
+                className="flex flex-col sm:flex-row gap-4 mb-10"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 }}
+              >
                 {connected ? (
                   <>
-                    <Link to="/create" className="btn-primary flex items-center justify-center gap-2 glow-pulse">
+                    <Link to="/create" className="px-8 py-3.5 bg-amber-500 hover:bg-amber-600 text-midnight-950 font-bold rounded-2xl shadow-glow-amber transition-all duration-300 hover:-translate-y-0.5 flex items-center justify-center gap-2 glow-pulse">
                       Create a Circle
                       <ArrowRight className="w-5 h-5" />
                     </Link>
-                    <Link to="/join" className="btn-secondary flex items-center justify-center gap-2">
+                    <Link to="/join" className="px-8 py-3.5 bg-white/10 backdrop-blur-sm hover:bg-white/20 text-cream-50 font-semibold rounded-2xl border border-white/20 transition-all duration-300 hover:-translate-y-0.5 flex items-center justify-center gap-2">
                       Join a Circle
                     </Link>
                   </>
                 ) : (
                   <>
-                    <Link to="/how-it-works" className="btn-primary flex items-center justify-center gap-2 glow-pulse">
-                      Learn How It Works
+                    <Link to="/how-it-works" className="px-8 py-3.5 bg-amber-500 hover:bg-amber-600 text-midnight-950 font-bold rounded-2xl shadow-glow-amber transition-all duration-300 hover:-translate-y-0.5 flex items-center justify-center gap-2 glow-pulse">
+                      Explore Circles
                       <ArrowRight className="w-5 h-5" />
                     </Link>
-                    <Link to="/explorer" className="btn-secondary flex items-center justify-center gap-2">
-                      Explore Circles
-                    </Link>
+                    <a href="https://youtu.be/AGZZAXuah-g" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 text-cream-200 hover:text-amber-400 transition-colors duration-300 group">
+                      <span className="w-12 h-12 rounded-full border-2 border-cream-300 group-hover:border-amber-400 flex items-center justify-center transition-colors duration-300">
+                        <Play className="w-5 h-5 ml-0.5" />
+                      </span>
+                      <span className="font-medium">Watch Video</span>
+                    </a>
                   </>
                 )}
               </motion.div>
 
               {/* Trust badges */}
               <motion.div 
-                className="flex flex-wrap gap-2 mb-10"
+                className="flex flex-wrap gap-2"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={{ delay: 0.5 }}
+                transition={{ delay: 0.6 }}
               >
                 {[
                   '100% Private',
@@ -153,10 +167,10 @@ export default function Home() {
                 ].map((badge, i) => (
                   <motion.span
                     key={badge}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-midnight-900/90 text-amber-400 border border-amber-500/30 tracking-wide backdrop-blur-sm"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-white/5 text-amber-300 border border-amber-500/20 tracking-wide backdrop-blur-sm"
                     initial={{ opacity: 0, scale: 0.8 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.5 + i * 0.08 }}
+                    transition={{ delay: 0.6 + i * 0.08 }}
                   >
                     <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
                     {badge}
@@ -165,11 +179,11 @@ export default function Home() {
               </motion.div>
             </motion.div>
 
-            {/* Right content - Animated illustration */}
+            {/* Right content — illustration over wallpaper */}
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.7, delay: 0.3, ease: [0.25, 0.4, 0.25, 1] }}
+              transition={{ duration: 0.7, delay: 0.4, ease: [0.25, 0.4, 0.25, 1] }}
               className="relative hidden lg:flex items-center justify-center"
             >
               <ZkCirclesIllustration />
@@ -183,8 +197,8 @@ export default function Home() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             {[
-              { icon: Users, value: 17, label: 'On-chain Transitions', suffix: '' },
-              { icon: Shield, value: 10, label: 'Privacy Mappings', suffix: '' },
+              { icon: Users, value: 24, label: 'On-chain Transitions', suffix: '' },
+              { icon: Shield, value: 17, label: 'Privacy Mappings', suffix: '' },
               { icon: Coins, value: 3, label: 'Supported Tokens', suffix: '' },
               { icon: Globe, value: 0, label: 'Plain Addresses Stored', suffix: '' },
             ].map((stat, i) => (

@@ -1,14 +1,16 @@
 # ZkCircles
 
-**Trustless, privacy-preserving ROSCA on the Aleo blockchain.**
+**Trustless, privacy-preserving ROSCA + credit scoring + P2P micro-lending on the Aleo blockchain.**
 
-Members pool a fixed amount each cycle and take turns receiving the full pot — no organizer holds funds, no one can cheat the order, and no member identity is exposed on-chain.
+Members pool a fixed amount each cycle and take turns receiving the full pot — no organizer holds funds, no one can cheat the order, and no member identity is exposed on-chain. Every contribution builds your on-chain credit score, unlocking reputation-gated circles and peer-to-peer lending.
 
 Privacy matters because financial need is personal. On ZkCircles, member keys are BHP256 hashes, receipts and membership proofs are private Aleo records visible only to the owner, and circle names are AES-256-GCM encrypted off-chain so only a hash reaches the chain.
 
 ![License](https://img.shields.io/badge/license-MIT-amber)
 ![Aleo](https://img.shields.io/badge/Aleo-Testnet-brightgreen)
-![Program](https://img.shields.io/badge/Program-zk__circles__v11.aleo-blue)
+![Program](https://img.shields.io/badge/Program-zk__circles__v15.aleo-blue)
+![Transitions](https://img.shields.io/badge/Transitions-24-orange)
+![Tokens](https://img.shields.io/badge/Tokens-ALEO%20%7C%20USDCx%20%7C%20USAD-blueviolet)
 
 **Live app:** https://zk-circles.vercel.app/  
 **Repo:** https://github.com/aamer1932002-dev/ZkCircles  
@@ -16,61 +18,87 @@ Privacy matters because financial need is personal. On ZkCircles, member keys ar
 
 ---
 
-## What's Working
+## Features
 
-**Core ROSCA flow**
-- Create a circle — set contribution amount, member cap (2-20), total cycles, and token (ALEO / USDCx / USAD)
-- Join a circle — any wallet can join a forming circle
-- Contribute — sends your contribution for the current cycle via `credits.aleo/transfer_public_as_signer` (or the stablecoin equivalent)
-- Claim payout — the cycle winner pulls the full pot via `credits.aleo/transfer_public`
-- Cancel circle — creator can cancel while the circle is still forming
+### Core ROSCA Flow
+- **Create a circle** — set contribution amount, member cap (2-20), total cycles, token (ALEO / USDCx / USAD), and minimum reputation score
+- **Join a circle** — any wallet can join a forming circle; reputation-gated circles enforce a minimum credit score
+- **Contribute** — sends your contribution for the current cycle via `credits.aleo/transfer_public_as_signer` (or the stablecoin equivalent)
+- **Claim payout** — the cycle winner pulls the full pot via `credits.aleo/transfer_public`
+- **Cancel circle** — creator can cancel while the circle is still forming
+- **Multi-token support** — native ALEO credits, USDCx stablecoin, and USAD stablecoin with dedicated contribute/claim transitions for each
 
-**Membership & identity**
-- Transfer membership — pass your circle position to any address; the new owner's address is synced to the backend and the UI refreshes immediately
-- Verify membership — on-chain ZK proof that an address holds a valid `CircleMembership` record
-- zkEmail identity verification — register an email hash on-chain and mark the address as verified; visible in the circle member list
+### On-Chain Credit Score
+- **Reputation tracking** — every contribution, circle completion, loan repayment, default, and missed payment is recorded on-chain
+- **Credit score formula** — integer arithmetic score from 0 to 100:
+  - Contribution points: `min(contributions × 3, 45)`
+  - Completion points: `min(circles_completed × 8, 25)`
+  - Loan repayment points: `min(loans_repaid × 5, 15)`
+  - Base: `15` (new user baseline)
+  - Penalties: `defaults × 10 + loan_defaults × 20`
+- **update_credit_score** — any user can recompute and store their score on-chain at any time
+- **claim_circle_completion** — members of completed circles claim a completion bonus to their reputation (once per circle)
 
-**Dispute resolution**
-- Create dispute — open a formal on-chain dispute against an accused member with a reason (missed contribution / suspicious activity / collusion)
-- Vote on dispute — members cast votes; tally tracked in the `dispute_votes` mapping
-- Resolve dispute — close the dispute and record the outcome (guilty / innocent) on-chain
+### Reputation-Gated Circles
+- Creators set a `min_reputation` (0-100) when creating a circle
+- Joiners must meet the minimum credit score to be accepted
+- Enables high-trust circles where every member has proven track record
 
-**Discovery & management**
-- Explorer — browse every circle on the platform with live on-chain status
-- My Circles — view all circles you have joined or created
-- Analytics — per-circle contribution history, member contribution breakdown, completion rate, payout schedule
-- Multi-cycle dashboard — visual timeline of all past and upcoming payout cycles for a circle
-- Circle invite links — share a URL that drops someone directly into the join flow for a specific circle
+### Peer-to-Peer Micro-Lending
+- **offer_loan** — lender deposits funds into program escrow, specifying borrower, amount, and interest rate (up to 50% / 5000 bps)
+- **accept_loan** — borrower accepts and receives disbursement (requires credit score ≥ 40)
+- **repay_loan** — borrower repays principal + interest; lender receives funds atomically; borrower's reputation improves
+- **cancel_loan** — lender reclaims funds before borrower accepts
+- **default_loan** — lender marks loan as defaulted; borrower's credit score is permanently damaged
+- No forced repayment — defaults act as permanent on-chain reputation damage
 
-**Automation & notifications**
-- Auto-contribution scheduling — enable reminders so you never miss a cycle; stored per-member in the backend
-- Browser notifications — push alerts for your payout turn and contribution reminders via the Service Worker
+### Membership & Identity
+- **Transfer membership** — pass your circle position to any address; the new owner is synced to the backend and the UI refreshes immediately
+- **Verify membership** — on-chain ZK proof that an address holds a valid `CircleMembership` record
+- **zkEmail identity verification** — register an email hash on-chain and mark the address as verified; visible in the member list
 
-**Infrastructure**
+### Dispute Resolution
+- **Create dispute** — open a formal on-chain dispute against an accused member (missed contribution / suspicious activity / collusion)
+- **Vote on dispute** — members cast votes; tally tracked in the `dispute_votes` mapping
+- **Resolve dispute** — close the dispute once quorum is reached; record the verdict (guilty / innocent) on-chain; guilty verdicts increment the accused's default count
+
+### Discovery & Management
+- **Explorer** — browse every circle on the platform with live on-chain status, search, and filters
+- **My Circles** — view all circles you have joined or created
+- **Analytics** — per-circle contribution history, member contribution breakdown, completion rate, payout schedule
+- **Member profile page** — per-address page showing circles joined, total contributed, payouts received, credit score, and verification status
+- **Circle invite links + QR codes** — share a URL or QR code that drops someone directly into the join flow
+
+### Automation & Notifications
+- **Auto-contribution scheduling** — enable reminders so you never miss a cycle; stored per-member in the backend
+- **Browser push notifications** — alerts for your payout turn and contribution reminders via Service Worker
+
+### Infrastructure
 - 3-layer membership caching — wallet records → localStorage → Aleo testnet fetch
 - Live transaction status tracker — polls the explorer until accepted or rejected; resolves Shield Wallet temporary IDs to real on-chain TX IDs
 - On-chain pre-flight checks — queries live chain state before every transaction to surface errors before broadcasting
-- Stale permissions handling — detects expired wallet sessions and prompts reconnect instead of showing a raw error
+- Stale permissions handling — detects expired wallet sessions and prompts reconnect
 - AES-256-GCM backend encryption — all member addresses and sensitive metadata are encrypted before hitting the database
 
 ---
 
 ## Smart Contract
 
-**Program:** `zk_circles_v14.aleo`  
+**Program:** `zk_circles_v15.aleo`  
 **Network:** Aleo Testnet  
-**v6 Deployment TX:** `at1z5rendz2gtpeq7u2ldsnmy8mrcvlxasn373n9j5j54v8t32lxcrsq7u7wh`
+**Leo version:** 4.0  
+**Stats:** 828 statements · 30.72 KB · 1.4M variables · 1.08M constraints
 
-### Transitions
+### Transitions (24 total)
 
 | Transition | Description |
 |---|---|
-| `create_circle` | Create a new savings circle |
-| `join_circle` | Join a forming circle |
-| `contribute` | Contribute ALEO for the current cycle (`transfer_public_as_signer`) |
+| `create_circle` | Create a new savings circle with optional reputation gate |
+| `join_circle` | Join a forming circle (credit score checked if gated) |
+| `contribute` | Contribute ALEO credits for the current cycle |
 | `contribute_usdcx` | Contribute USDCx stablecoin |
 | `contribute_usad` | Contribute USAD stablecoin |
-| `claim_payout` | Claim the ALEO pot when it is your turn (`transfer_public`) |
+| `claim_payout` | Claim the ALEO pot when it is your turn |
 | `claim_payout_usdcx` | Claim USDCx payout |
 | `claim_payout_usad` | Claim USAD payout |
 | `transfer_membership` | Transfer your position to another address |
@@ -82,6 +110,13 @@ Privacy matters because financial need is personal. On ZkCircles, member keys ar
 | `resolve_dispute` | Close a dispute and record the verdict |
 | `register_email_commitment` | Commit an email hash to the chain |
 | `verify_email_commitment` | Mark an address as email-verified on-chain |
+| `claim_circle_completion` | Claim circle completion reputation bonus |
+| `update_credit_score` | Recompute and store your on-chain credit score |
+| `offer_loan` | Offer a P2P loan (escrow funds into program) |
+| `accept_loan` | Accept a loan offer (score ≥ 40 required) |
+| `repay_loan` | Repay loan principal + interest |
+| `cancel_loan` | Cancel a pending loan offer |
+| `default_loan` | Mark a loan as defaulted |
 
 ### Private Records
 
@@ -92,7 +127,7 @@ Privacy matters because financial need is personal. On ZkCircles, member keys ar
 | `PayoutReceipt` | `owner`, `circle_id`, `cycle` |
 | `DisputeReceipt` | `owner`, `circle_id`, `dispute_id`, `accused` |
 
-### Mappings
+### Mappings (17 total)
 
 | Mapping | Key → Value |
 |---|---|
@@ -106,6 +141,13 @@ Privacy matters because financial need is personal. On ZkCircles, member keys ar
 | `dispute_votes` | `BHP256(DisputeVoteKey)` → `bool` |
 | `email_commitments` | `BHP256(address)` → email hash |
 | `email_verified` | `BHP256(address)` → `bool` |
+| `reputation_contributions` | `BHP256(address)` → total contributions |
+| `reputation_defaults` | `BHP256(address)` → total defaults |
+| `reputation_completed` | `BHP256(address)` → circles completed |
+| `reputation_loans_repaid` | `BHP256(address)` → loans repaid |
+| `reputation_loans_defaulted` | `BHP256(address)` → loans defaulted |
+| `credit_scores` | `BHP256(address)` → score (0-100) |
+| `loans` | `loan_id` → `LoanInfo` |
 
 ### Privacy Design
 
@@ -113,6 +155,8 @@ Privacy matters because financial need is personal. On ZkCircles, member keys ar
 - Membership, contribution, payout, and dispute proofs are **private records** encrypted to the owner's key
 - Circle names are **AES-256-GCM encrypted off-chain**; only the derived `circle_id` field hash is stored on-chain
 - Circle IDs are derived as `BHP256(creator + name + salt)` — the name is never on-chain
+- Credit scores are stored under hashed address keys — no address ↔ score link is visible to observers
+- Loan records use hashed loan IDs — the relationship between lender and borrower is only visible to the participants
 
 ---
 
@@ -120,11 +164,11 @@ Privacy matters because financial need is personal. On ZkCircles, member keys ar
 
 | Layer | Technology |
 |---|---|
-| Frontend | React + TypeScript + Vite + Tailwind CSS, deployed on Vercel |
-| Wallet | Shield Wallet (primary) and Leo Wallet via `@provablehq/aleo-wallet-adaptor-react` |
+| Frontend | React 18 + TypeScript + Vite 5 + Tailwind CSS 3.4 + Framer Motion 11 |
+| Wallet | Shield Wallet (primary) + Leo Wallet via `@provablehq/aleo-wallet-adaptor-react` |
 | Backend | Express.js + Supabase (PostgreSQL), deployed on Render |
 | Encryption | AES-256-GCM for all off-chain sensitive data |
-| Chain | Aleo Testnet — `zk_circles_v14.aleo` + `credits.aleo` |
+| Chain | Aleo Testnet — `zk_circles_v15.aleo` + `credits.aleo` + `test_usdcx_stablecoin.aleo` + `test_usad_stablecoin.aleo` |
 
 ---
 
@@ -132,17 +176,15 @@ Privacy matters because financial need is personal. On ZkCircles, member keys ar
 
 ```
 LeoCircles/
-├── contracts/zk_circles/src/main.leo   # Core ROSCA smart contract
+├── contracts/zk_circles/src/main.leo   # v15 smart contract (828 statements)
 ├── frontend/src/
 │   ├── pages/        # Home, CreateCircle, JoinCircle, CircleDetail, MyCircles,
-│   │                 # Explorer, Analytics, CycleDashboard, DisputeResolution,
-│   │                 # InviteAccept, VerifyIdentity, HowItWorks, Privacy
+│   │                 # Explorer, Analytics, Lending, HowItWorks, Privacy
 │   ├── hooks/        # useCreateCircle, useJoinCircle, useContribute, useClaimPayout,
-│   │                 # useTransferMembership, useVerifyMembership, useDisputeResolution,
-│   │                 # useOnChainDispute, useZkEmailVerification, useAutoContribution,
-│   │                 # useInviteLinks, useAnalytics, useNotifications, useCircles, etc.
-│   ├── utils/        # transactionTracker, membershipCache, recordResolver,
-│   │                 # onChainQuery, walletErrors
+│   │                 # useTransferMembership, useVerifyMembership, useCreditScore,
+│   │                 # useLending, useAnalytics, useNotifications, useCircles,
+│   │                 # useMyCircles, useCircleDetail
+│   ├── utils/        # aleo-utils, membershipCache, onChainQuery
 │   ├── services/api.ts
 │   └── config.ts
 └── backend/
@@ -201,18 +243,41 @@ npm run dev
 
 ---
 
-## Next Wave Roadmap
+## Roadmap
 
-> Small, shippable improvements that build directly on what already works.
+### Completed (v15)
+- [x] Core ROSCA flow (create, join, contribute, claim, cancel)
+- [x] Multi-token support (ALEO, USDCx, USAD)
+- [x] On-chain dispute resolution (create, vote, resolve)
+- [x] zkEmail identity verification
+- [x] Flag missed contributions with reputation impact
+- [x] Explorer with search and filters
+- [x] Member profile page with credit score
+- [x] QR codes for circle invite links
+- [x] On-chain credit score system (reputation tracking + scoring formula)
+- [x] Reputation-gated circles
+- [x] P2P micro-lending (offer, accept, repay, cancel, default)
+- [x] Lending dashboard page
 
-| # | Feature | Why |
+### Next (v16)
+| # | Feature | Description |
 |---|---|---|
-| 1 | **QR code for invite links** | Circle invite links are already working — adding a QR code makes sharing in person instant |
-| 2 | **Email notifications** | Browser push is live; adding email as a fallback ensures members never miss their payout turn |
-| 3 | **Explorer search & filters** | Filter circles by token type, status, or contribution amount so users find the right circle faster |
-| 4 | **Circle templates** | Let creators pick from preset configurations (e.g. 5-member / 10 cycles / 10 ALEO) to reduce setup friction |
-| 5 | **Contribution history export** | One-click CSV download of your full contribution and payout history from the Analytics page |
-| 6 | **Member profile page** | A per-address page showing circles joined, total contributed, payouts received, and verification status |
+| 1 | **Multi-token lending** | Extend P2P lending to USDCx and USAD stablecoins |
+| 2 | **Circle templates** | Preset configurations (e.g. 5-member / 10 cycles / 10 ALEO) to reduce setup friction |
+| 3 | **Email notifications** | Email fallback alongside browser push so members never miss their payout turn |
+| 4 | **Contribution history export** | One-click CSV download of full contribution and payout history |
+| 5 | **Loan marketplace** | Browse and filter available loan offers by amount, interest rate, and lender score |
+| 6 | **Auto-contribution execution** | Move from reminders to actual scheduled on-chain contributions |
+
+### Future Vision
+| Feature | Description |
+|---|---|
+| **Cross-chain bridging** | Bridge ROSCA payouts to EVM chains via Aleo's bridge infrastructure |
+| **Mobile app** | React Native wrapper with biometric wallet signing |
+| **DAO governance** | Token-weighted governance for protocol parameters (max interest, min score thresholds) |
+| **Institutional lending pools** | Allow DAOs and protocols to fund lending pools using ZkCircles credit scores |
+| **Privacy-preserving credit reports** | ZK proofs that attest to a minimum credit score without revealing the exact value |
+| **Fiat on/off ramps** | Direct fiat-to-ALEO conversion within the app for non-crypto-native users |
 
 ---
 
