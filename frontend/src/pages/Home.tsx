@@ -139,7 +139,7 @@ export default function Home() {
                   </>
                 ) : (
                   <>
-                    <Link to="/how-it-works" className="px-8 py-3.5 bg-amber-500 hover:bg-amber-600 text-midnight-950 font-bold rounded-2xl shadow-glow-amber transition-all duration-300 hover:-translate-y-0.5 flex items-center justify-center gap-2 glow-pulse">
+                    <Link to="/explorer" className="px-8 py-3.5 bg-amber-500 hover:bg-amber-600 text-midnight-950 font-bold rounded-2xl shadow-glow-amber transition-all duration-300 hover:-translate-y-0.5 flex items-center justify-center gap-2 glow-pulse">
                       Explore Circles
                       <ArrowRight className="w-5 h-5" />
                     </Link>
