@@ -193,7 +193,7 @@ export default function WalletButton() {
             </div>
             {stalePermissions && (
               <div className="mx-3 mt-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
-                <strong>Reconnect required</strong> — your wallet session was for an older contract version. Please select your wallet again to grant access to <code>zk_circles_v6.aleo</code>.
+                <strong>Reconnect required</strong> — your wallet session was for an older contract version. Please select your wallet again to grant access to <code>zk_circles_v15.aleo</code>.
               </div>
             )}
             <div className="p-2">
