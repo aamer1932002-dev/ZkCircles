@@ -12,7 +12,7 @@ CREATE TABLE circles (
     name_hash TEXT, -- Hash of the name for lookups
     creator TEXT NOT NULL, -- Encrypted creator address
     contribution_amount BIGINT NOT NULL, -- In microcredits
-    max_members SMALLINT NOT NULL CHECK (max_members >= 2 AND max_members <= 12),
+    max_members SMALLINT NOT NULL CHECK (max_members >= 2 AND max_members <= 20),
     cycle_duration_blocks INTEGER NOT NULL,
     total_cycles SMALLINT NOT NULL,
     salt TEXT, -- Salt used for circle ID generation

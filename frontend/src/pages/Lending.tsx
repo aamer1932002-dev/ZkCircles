@@ -72,7 +72,7 @@ export default function Lending() {
   const [defaultLoanId, setDefaultLoanId] = useState('')
   const [defaultBorrower, setDefaultBorrower] = useState('')
 
-  const [result, setResult] = useState<{ success: boolean; message: string } | null>(null)
+  const [result, setResult] = useState<{ success: boolean; message: string; loanId?: string } | null>(null)
 
   useEffect(() => {
     if (connected && address) fetchScore()
@@ -94,7 +94,7 @@ export default function Lending() {
     }
     const res = await offerLoan({ borrower, amount: amountMicro, interestBps: bps })
     if (res.success) {
-      setResult({ success: true, message: `Loan offered! ID: ${res.loanId?.slice(0, 16)}...` })
+      setResult({ success: true, message: 'Loan offered successfully!', loanId: res.loanId })
       setBorrower('')
       setAmount('')
     } else {
@@ -278,7 +278,19 @@ export default function Lending() {
                 }`}
               >
                 {result.success ? <CheckCircle2 className="w-5 h-5 flex-shrink-0" /> : <AlertTriangle className="w-5 h-5 flex-shrink-0" />}
-                <span className="flex-1">{result.message}</span>
+                <div className="flex-1">
+                  <span>{result.message}</span>
+                  {result.loanId && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className="text-xs font-medium opacity-70">Loan ID:</span>
+                      <code className="text-xs bg-white/60 px-2 py-1 rounded-md font-mono break-all select-all">{result.loanId}</code>
+                      <button
+                        onClick={() => { navigator.clipboard.writeText(result.loanId!); }}
+                        className="text-xs underline hover:opacity-70"
+                      >Copy</button>
+                    </div>
+                  )}
+                </div>
                 <button onClick={clearResult} className="hover:opacity-70">
                   <XCircle className="w-4 h-4" />
                 </button>

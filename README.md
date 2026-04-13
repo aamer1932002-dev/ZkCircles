@@ -277,8 +277,9 @@ npm run dev
 | **DAO governance** | Token-weighted governance for protocol parameters (max interest, min score thresholds) |
 | **Institutional lending pools** | Allow DAOs and protocols to fund lending pools using ZkCircles credit scores |
 | **Privacy-preserving credit reports** | ZK proofs that attest to a minimum credit score without revealing the exact value |
-| **Fiat on/off ramps** | Direct fiat-to-ALEO conversion within the app for non-crypto-native users |
-
+| **Fiat on/off ramps** | Direct fiat-to-ALEO conversion within the app for non-crypto-native users |`    ``
+-12 
+T7=W
 ---
 
 ## Resources

@@ -619,10 +619,11 @@ app.post('/api/circles', async (req, res) => {
       current_cycle: 1,
       members_joined: 1,
     }
+    // Always include token_id so USDCx/USAD circles persist to DB
+    circleInsert.token_id = tokenId || '0field'
     // Only include nullable columns when the caller actually sends them
     if (nameHash != null) circleInsert.name_hash = nameHash
     if (salt != null) circleInsert.salt = salt
-    if (tokenId && tokenId !== '0field') circleInsert.token_id = tokenId
 
     // Insert circle
     const { error: circleError } = await supabase
