@@ -11,9 +11,11 @@ import {
   Users,
   Coins,
   Globe,
-  Play
+  Play,
+  TrendingUp,
+  Banknote,
+  Lock
 } from 'lucide-react'
-import ZkCirclesIllustration from '../components/ZkCirclesIllustration'
 import PageTransition from '../components/PageTransition'
 import AnimatedCounter from '../components/AnimatedCounter'
 
@@ -179,14 +181,64 @@ export default function Home() {
               </motion.div>
             </motion.div>
 
-            {/* Right content — illustration over wallpaper */}
+            {/* Right content — feature highlight cards */}
             <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
+              initial={{ opacity: 0, x: 30 }}
+              animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.7, delay: 0.4, ease: [0.25, 0.4, 0.25, 1] }}
-              className="relative hidden lg:flex items-center justify-center"
+              className="relative hidden lg:flex flex-col gap-4"
             >
-              <ZkCirclesIllustration />
+              {[
+                {
+                  icon: Users,
+                  title: 'Savings Circles',
+                  desc: 'Pool funds with your community. Trustless payouts every cycle.',
+                  accent: 'amber',
+                },
+                {
+                  icon: TrendingUp,
+                  title: 'Credit Score',
+                  desc: 'Build on-chain reputation. Every contribution counts.',
+                  accent: 'forest',
+                },
+                {
+                  icon: Banknote,
+                  title: 'P2P Lending',
+                  desc: 'Borrow and lend backed by your verified credit history.',
+                  accent: 'amber',
+                },
+              ].map((card, i) => (
+                <motion.div
+                  key={card.title}
+                  initial={{ opacity: 0, x: 40 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.5 + i * 0.15, duration: 0.5, ease: [0.25, 0.4, 0.25, 1] }}
+                  className="group flex items-start gap-4 p-5 rounded-2xl bg-white/[0.06] backdrop-blur-md border border-white/10 hover:border-amber-400/30 hover:bg-white/[0.1] transition-all duration-300"
+                >
+                  <div className={`flex-shrink-0 w-11 h-11 rounded-xl flex items-center justify-center ${
+                    card.accent === 'forest'
+                      ? 'bg-forest-500/20 text-forest-400'
+                      : 'bg-amber-500/20 text-amber-400'
+                  }`}>
+                    <card.icon className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-cream-50 font-semibold text-base mb-1">{card.title}</h3>
+                    <p className="text-cream-400 text-sm leading-relaxed">{card.desc}</p>
+                  </div>
+                </motion.div>
+              ))}
+
+              {/* Decorative lock badge */}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 1, type: 'spring', stiffness: 200 }}
+                className="flex items-center gap-2 self-end mt-2 px-4 py-2 rounded-full bg-amber-500/10 border border-amber-500/20 backdrop-blur-sm"
+              >
+                <Lock className="w-3.5 h-3.5 text-amber-400" />
+                <span className="text-xs font-medium text-amber-300">Zero-Knowledge Protected</span>
+              </motion.div>
             </motion.div>
           </div>
         </div>
